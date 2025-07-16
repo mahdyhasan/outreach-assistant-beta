@@ -1,80 +1,84 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
-import { useSettings } from "./use-settings";
-import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
-interface GenerateEmailParams {
+interface EmailGenerationRequest {
   leadId: string;
-  contactData: {
-    contact_name: string;
-    email: string;
-    job_title: string;
-  };
-  companyData: {
-    company_name: string;
-    industry: string;
-    company_size: string;
-    location: string;
-    website?: string;
-    enrichment_data?: any;
-  };
+  template?: string;
+  customPrompt?: string;
 }
 
-export function useEmailGeneration() {
-  const queryClient = useQueryClient();
-  const { getApiKey, isApiActive, emailSettings } = useSettings();
+export const useEmailGeneration = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const generateEmailMutation = useMutation({
-    mutationFn: async ({ leadId, contactData, companyData }: GenerateEmailParams) => {
-      const openaiApiKey = getApiKey('openai');
-      
-      if (!openaiApiKey) {
-        throw new Error('OpenAI API key not configured. Please add it in Settings.');
-      }
-
-      if (!emailSettings.emailPrompt) {
-        throw new Error('Email prompt not configured. Please set it up in Settings.');
-      }
-
+  const generateEmail = useMutation({
+    mutationFn: async (request: EmailGenerationRequest) => {
       const { data, error } = await supabase.functions.invoke('email-generation', {
-        body: {
-          leadId,
-          contactData,
-          companyData,
-          emailPrompt: emailSettings.emailPrompt,
-          signature: emailSettings.signature,
-          openaiApiKey,
-        },
+        body: request,
       });
 
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
+
       return data;
     },
-    onSuccess: (data, variables) => {
-      // Invalidate email queue to show new email
+    onSuccess: (data) => {
+      // Invalidate email queue to refresh the list
       queryClient.invalidateQueries({ queryKey: ['email-queue'] });
       
       toast({
         title: "Email Generated",
-        description: `Email for ${variables.contactData.contact_name} has been generated and added to the queue for review.`,
+        description: "Email has been generated and added to the queue for review.",
       });
     },
-    onError: (error) => {
-      console.error('Email generation error:', error);
+    onError: (error: any) => {
+      console.error('Email generation failed:', error);
       toast({
-        title: "Email Generation Failed",
-        description: error.message || "Failed to generate email.",
+        title: "Generation Failed",
+        description: error.message || "Failed to generate email. Please try again.",
         variant: "destructive",
       });
     },
   });
 
-  const canGenerateEmails = isApiActive('openai') && !!emailSettings.emailPrompt;
+  const bulkGenerateEmails = useMutation({
+    mutationFn: async (requests: EmailGenerationRequest[]) => {
+      const results = await Promise.allSettled(
+        requests.map(request => 
+          supabase.functions.invoke('email-generation', {
+            body: request,
+          })
+        )
+      );
+
+      const successful = results.filter(result => result.status === 'fulfilled').length;
+      const failed = results.filter(result => result.status === 'rejected').length;
+
+      return { successful, failed, total: requests.length };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['email-queue'] });
+      
+      toast({
+        title: "Bulk Generation Complete",
+        description: `Generated ${data.successful} emails successfully. ${data.failed} failed.`,
+      });
+    },
+    onError: (error: any) => {
+      console.error('Bulk email generation failed:', error);
+      toast({
+        title: "Bulk Generation Failed",
+        description: error.message || "Failed to generate emails in bulk.",
+        variant: "destructive",
+      });
+    },
+  });
 
   return {
-    generateEmail: generateEmailMutation.mutate,
-    isGenerating: generateEmailMutation.isPending,
-    canGenerateEmails,
+    generateEmail,
+    bulkGenerateEmails,
+    isGenerating: generateEmail.isPending || bulkGenerateEmails.isPending,
   };
-}
+};

@@ -9,9 +9,9 @@ const corsHeaders = {
 
 interface EnrichmentRequest {
   leadId: string;
-  companyName: string;
-  website?: string;
-  apolloApiKey: string;
+  email?: string;
+  companyName?: string;
+  domain?: string;
 }
 
 interface ApolloResponse {
@@ -44,11 +44,7 @@ serve(async (req) => {
   }
 
   try {
-    const { leadId, companyName, website, apolloApiKey }: EnrichmentRequest = await req.json();
-
-    if (!apolloApiKey) {
-      throw new Error('Apollo API key is required');
-    }
+    const { leadId, email, companyName, domain }: EnrichmentRequest = await req.json();
 
     console.log(`Enriching lead ${leadId} for company: ${companyName}`);
 
@@ -57,65 +53,134 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Call Apollo.io API for company enrichment
-    const apolloResponse = await fetch('https://api.apollo.io/v1/organizations/search', {
-      method: 'POST',
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Content-Type': 'application/json',
-        'X-Api-Key': apolloApiKey,
-      },
-      body: JSON.stringify({
-        q_organization_name: companyName,
-        q_organization_domains: website ? [website] : undefined,
-        page: 1,
-        per_page: 1,
-      }),
-    });
+    // Get lead data first
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
 
-    if (!apolloResponse.ok) {
-      const errorText = await apolloResponse.text();
-      console.error('Apollo API error:', errorText);
-      throw new Error(`Apollo API error: ${apolloResponse.status}`);
+    if (leadError || !lead) {
+      throw new Error('Lead not found');
     }
 
-    const apolloData = await apolloResponse.json() as ApolloResponse;
-    const organization = apolloData.organization;
+    let enrichmentData: any = {};
 
-    if (!organization) {
-      console.log('No organization data found from Apollo');
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          message: 'Company not found in Apollo database' 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    // Try Apollo.io enrichment if API key is available
+    const apolloApiKey = Deno.env.get('APOLLO_API_KEY');
+    if (apolloApiKey && (email || domain || companyName || lead.company_name)) {
+      console.log('Attempting Apollo.io enrichment...');
+      
+      try {
+        // Call Apollo.io API for person/company enrichment
+        const apolloResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+          method: 'POST',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Content-Type': 'application/json',
+            'X-Api-Key': apolloApiKey,
+          },
+          body: JSON.stringify({
+            q_person_emails: email || lead.email ? [email || lead.email] : undefined,
+            q_organization_domains: domain || lead.website ? [domain || lead.website] : undefined,
+            q_organization_name: companyName || lead.company_name || undefined,
+            page: 1,
+            per_page: 1,
+          }),
+        });
+
+        if (apolloResponse.ok) {
+          const apolloData = await apolloResponse.json();
+          console.log('Apollo.io response received');
+          
+          if (apolloData.people && apolloData.people.length > 0) {
+            const person = apolloData.people[0];
+            enrichmentData.apollo_data = {
+              person: {
+                name: person.name,
+                title: person.title,
+                linkedin_url: person.linkedin_url,
+                phone_numbers: person.phone_numbers,
+              },
+              organization: person.organization ? {
+                name: person.organization.name,
+                website_url: person.organization.website_url,
+                linkedin_url: person.organization.linkedin_url,
+                industry: person.organization.industry,
+                employees: person.organization.estimated_num_employees,
+                location: person.organization.primary_location?.city,
+                description: person.organization.short_description,
+                technologies: person.organization.technologies || [],
+                funding: person.organization.total_funding || 0,
+                founded_year: person.organization.founded_year,
+              } : null
+            };
+          }
+        } else {
+          console.log('Apollo.io API error:', apolloResponse.status);
+        }
+      } catch (apolloError) {
+        console.error('Apollo.io enrichment failed:', apolloError);
+      }
+    }
+
+    // Try Serper Google Search for additional company information
+    const serperApiKey = Deno.env.get('SERPER_API_KEY');
+    if (serperApiKey && (companyName || lead.company_name)) {
+      console.log('Attempting Google Search enrichment...');
+      
+      try {
+        const searchQuery = `"${companyName || lead.company_name}" company information contact`;
+        const serperResponse = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': serperApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            q: searchQuery,
+            num: 5,
+          }),
+        });
+
+        if (serperResponse.ok) {
+          const searchData = await serperResponse.json();
+          console.log('Google Search completed');
+          
+          enrichmentData.search_results = {
+            organic: searchData.organic?.slice(0, 3) || [],
+            knowledge_graph: searchData.knowledgeGraph || null,
+          };
+        }
+      } catch (searchError) {
+        console.error('Google Search enrichment failed:', searchError);
+      }
     }
 
     // Prepare enrichment data
-    const enrichmentData = {
-      apollo_data: {
-        industry: organization.industry,
-        employees: organization.estimated_num_employees,
-        funding: organization.total_funding,
-        technologies: organization.technologies || [],
-        founded_year: organization.founded_year,
-        linkedin_url: organization.linkedin_url,
-        location: organization.location,
-        recent_funding: organization.recent_funding,
+    if (Object.keys(enrichmentData).length === 0) {
+      console.log('No enrichment data found from any source');
+      enrichmentData = {
         enriched_at: new Date().toISOString(),
-      },
-    };
+        message: 'No enrichment data available from configured sources'
+      };
+    } else {
+      enrichmentData.enriched_at = new Date().toISOString();
+    }
 
     // Update the lead with enrichment data
-    const { error: updateError } = await supabase
+    const { data: updatedLead, error: updateError } = await supabase
       .from('leads')
       .update({
-        enrichment_data: enrichmentData,
+        enrichment_data: {
+          ...lead.enrichment_data,
+          ...enrichmentData,
+        },
         updated_at: new Date().toISOString(),
       })
-      .eq('id', leadId);
+      .eq('id', leadId)
+      .select()
+      .single();
 
     if (updateError) {
       console.error('Error updating lead:', updateError);
@@ -126,20 +191,20 @@ serve(async (req) => {
     const signals = [];
 
     // Funding signal
-    if (organization.recent_funding && organization.recent_funding.amount > 1000000) {
+    if (enrichmentData.apollo_data?.organization?.funding && enrichmentData.apollo_data.organization.funding > 1000000) {
       signals.push({
-        company_name: companyName,
+        company_name: companyName || lead.company_name,
         signal_type: 'funding',
-        signal_title: `${organization.recent_funding.type} funding of $${(organization.recent_funding.amount / 1000000).toFixed(1)}M`,
-        signal_description: `Recently raised ${organization.recent_funding.type} funding of $${organization.recent_funding.amount.toLocaleString()}`,
-        priority: organization.recent_funding.amount > 10000000 ? 'high' : 'medium',
+        signal_title: `Company has significant funding of $${(enrichmentData.apollo_data.organization.funding / 1000000).toFixed(1)}M`,
+        signal_description: `Total funding: $${enrichmentData.apollo_data.organization.funding.toLocaleString()}`,
+        priority: enrichmentData.apollo_data.organization.funding > 10000000 ? 'high' : 'medium',
         lead_id: leadId,
       });
     }
 
     // Technology signal
-    if (organization.technologies && organization.technologies.length > 0) {
-      const relevantTech = organization.technologies.filter(tech => 
+    if (enrichmentData.apollo_data?.organization?.technologies && enrichmentData.apollo_data.organization.technologies.length > 0) {
+      const relevantTech = enrichmentData.apollo_data.organization.technologies.filter((tech: string) => 
         ['salesforce', 'hubspot', 'microsoft', 'aws', 'google'].some(keyword => 
           tech.toLowerCase().includes(keyword)
         )
@@ -147,7 +212,7 @@ serve(async (req) => {
       
       if (relevantTech.length > 0) {
         signals.push({
-          company_name: companyName,
+          company_name: companyName || lead.company_name,
           signal_type: 'news',
           signal_title: 'Uses relevant technology stack',
           signal_description: `Company uses: ${relevantTech.join(', ')}`,
@@ -173,6 +238,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
+        lead: updatedLead,
         enrichment_data: enrichmentData,
         signals_created: signals.length,
       }),

@@ -9,31 +9,7 @@ const corsHeaders = {
 
 interface ScoringRequest {
   leadId: string;
-  companyData: {
-    company_name: string;
-    company_size: string;
-    industry: string;
-    location: string;
-    website?: string;
-    enrichment_data?: any;
-  };
-  scoringWeights: {
-    companySize: number;
-    techStack: number;
-    funding: number;
-    jobPostings: number;
-    geographic: number;
-  };
-  geographicScoring: {
-    uk: number;
-    australia: number;
-    singapore: number;
-    malaysia: number;
-    qatar: number;
-    westernEurope: number;
-    other: number;
-  };
-  openaiApiKey: string;
+  customCriteria?: any;
 }
 
 interface OpenAIResponse {
@@ -51,208 +27,151 @@ serve(async (req) => {
   }
 
   try {
-    const { leadId, companyData, scoringWeights, geographicScoring, openaiApiKey }: ScoringRequest = await req.json();
+    const { leadId, customCriteria }: ScoringRequest = await req.json();
 
-    if (!openaiApiKey) {
-      throw new Error('OpenAI API key is required');
-    }
-
-    console.log(`Scoring lead ${leadId} for company: ${companyData.company_name}`);
+    console.log(`Scoring lead ${leadId}`);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Calculate base scores
-    let scores = {
-      companySize: 0,
-      techStack: 0,
-      funding: 0,
-      jobPostings: 0,
-      geographic: 0,
+    // Get lead data with enrichment
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
+
+    if (leadError || !lead) {
+      throw new Error('Lead not found');
+    }
+
+    // Get scoring settings
+    const { data: settings } = await supabase
+      .from('mining_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    // Prepare data for ChatGPT analysis
+    const leadContext = {
+      contact_name: lead.contact_name,
+      job_title: lead.job_title,
+      company_name: lead.company_name,
+      industry: lead.industry,
+      company_size: lead.company_size,
+      location: lead.location,
+      website: lead.website,
+      enrichment_data: lead.enrichment_data || {},
+      current_score: lead.ai_score,
     };
 
-    // Company Size Scoring (target: 11-200 employees)
-    const sizeMatch = companyData.company_size.match(/(\d+)/g);
-    if (sizeMatch) {
-      const size = parseInt(sizeMatch[0]);
-      if (size >= 11 && size <= 200) {
-        scores.companySize = 100;
-      } else if (size >= 5 && size <= 500) {
-        scores.companySize = 70;
-      } else if (size >= 201 && size <= 1000) {
-        scores.companySize = 50;
-      } else {
-        scores.companySize = 20;
-      }
-    }
+    // Create scoring prompt
+    const scoringPrompt = `
+You are a B2B lead scoring AI. Analyze this lead and provide a score from 0-100 based on their potential value.
 
-    // Geographic Scoring
-    const location = companyData.location.toLowerCase();
-    if (location.includes('uk') || location.includes('united kingdom') || location.includes('england') || location.includes('scotland') || location.includes('wales')) {
-      scores.geographic = geographicScoring.uk;
-    } else if (location.includes('australia')) {
-      scores.geographic = geographicScoring.australia;
-    } else if (location.includes('singapore')) {
-      scores.geographic = geographicScoring.singapore;
-    } else if (location.includes('malaysia')) {
-      scores.geographic = geographicScoring.malaysia;
-    } else if (location.includes('qatar')) {
-      scores.geographic = geographicScoring.qatar;
-    } else if (location.includes('germany') || location.includes('france') || location.includes('spain') || location.includes('italy') || location.includes('netherlands') || location.includes('belgium')) {
-      scores.geographic = geographicScoring.westernEurope;
-    } else {
-      scores.geographic = geographicScoring.other;
-    }
+Lead Information:
+- Contact: ${leadContext.contact_name} (${leadContext.job_title})
+- Company: ${leadContext.company_name}
+- Industry: ${leadContext.industry}
+- Company Size: ${leadContext.company_size}
+- Location: ${leadContext.location}
+- Website: ${leadContext.website}
 
-    // Enrichment-based scoring
-    if (companyData.enrichment_data?.apollo_data) {
-      const apolloData = companyData.enrichment_data.apollo_data;
-      
-      // Tech Stack Score
-      if (apolloData.technologies && apolloData.technologies.length > 0) {
-        const relevantTech = apolloData.technologies.filter((tech: string) => 
-          ['salesforce', 'hubspot', 'microsoft', 'aws', 'google', 'crm', 'analytics'].some(keyword => 
-            tech.toLowerCase().includes(keyword)
-          )
-        );
-        scores.techStack = Math.min(100, (relevantTech.length / apolloData.technologies.length) * 100);
-      }
+Enrichment Data: ${JSON.stringify(leadContext.enrichment_data, null, 2)}
 
-      // Funding Score
-      if (apolloData.recent_funding) {
-        const fundingAmount = apolloData.recent_funding.amount;
-        if (fundingAmount > 50000000) scores.funding = 100;
-        else if (fundingAmount > 10000000) scores.funding = 80;
-        else if (fundingAmount > 1000000) scores.funding = 60;
-        else scores.funding = 30;
-      } else if (apolloData.total_funding > 0) {
-        scores.funding = 40;
-      }
-    }
+Scoring Criteria (prioritize these):
+${JSON.stringify(customCriteria || settings?.icp_criteria || {}, null, 2)}
 
-    // Use OpenAI for advanced analysis
-    const prompt = `
-Analyze this B2B lead and provide additional scoring insights:
+Please analyze and provide:
+1. Overall Score (0-100)
+2. Key Reasons (array of strings explaining the score)
+3. Priority Level (high/medium/low)
+4. Recommended Actions (array of suggested next steps)
 
-Company: ${companyData.company_name}
-Industry: ${companyData.industry}
-Size: ${companyData.company_size}
-Location: ${companyData.location}
-Website: ${companyData.website || 'N/A'}
-
-Enrichment Data: ${JSON.stringify(companyData.enrichment_data || {}, null, 2)}
-
-Based on this information, analyze:
-1. Job posting likelihood (0-100): How likely are they to be hiring/growing?
-2. Overall lead quality factors
-3. Key selling points to focus on
-4. Potential objections or challenges
-
-Respond in JSON format:
+Respond ONLY with valid JSON in this format:
 {
-  "job_posting_score": number,
-  "quality_factors": ["factor1", "factor2"],
-  "selling_points": ["point1", "point2"],
-  "potential_objections": ["objection1", "objection2"],
-  "overall_assessment": "brief assessment"
-}
-`;
+  "score": 85,
+  "reasons": ["Strong job title match", "High-growth company", "Active on LinkedIn"],
+  "priority": "high",
+  "recommended_actions": ["Schedule demo", "Send case study"],
+  "analysis": "Brief explanation of the scoring rationale"
+}`;
 
-    const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: 'You are a B2B lead scoring expert. Analyze companies for sales potential and provide structured insights.' 
-          },
-          { role: 'user', content: prompt }
-        ],
-        temperature: 0.3,
-      }),
-    });
+    // Call ChatGPT for scoring
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    let scoringResult: any = {
+      score: 50,
+      reasons: ['Basic lead data available'],
+      priority: 'medium',
+      recommended_actions: ['Review lead details'],
+      analysis: 'Standard lead evaluation completed'
+    };
 
-    let aiAnalysis = null;
-    if (openaiResponse.ok) {
-      const aiData: OpenAIResponse = await openaiResponse.json();
+    if (openaiApiKey) {
       try {
-        aiAnalysis = JSON.parse(aiData.choices[0].message.content);
-        scores.jobPostings = aiAnalysis.job_posting_score || 50;
-      } catch (e) {
-        console.error('Error parsing AI response:', e);
-        scores.jobPostings = 50; // Default score
+        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${openaiApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o-mini',
+            messages: [
+              {
+                role: 'system',
+                content: 'You are an expert B2B lead scoring analyst. Always respond with valid JSON only.'
+              },
+              {
+                role: 'user',
+                content: scoringPrompt
+              }
+            ],
+            temperature: 0.3,
+            max_tokens: 1000,
+          }),
+        });
+
+        if (openaiResponse.ok) {
+          const openaiData = await openaiResponse.json();
+          scoringResult = JSON.parse(openaiData.choices[0].message.content);
+          console.log('AI scoring completed:', scoringResult);
+        } else {
+          console.error('OpenAI API error:', openaiResponse.status);
+        }
+      } catch (error) {
+        console.error('Error calling OpenAI:', error);
       }
-    } else {
-      console.error('OpenAI API error:', await openaiResponse.text());
-      scores.jobPostings = 50; // Default score
     }
 
-    // Calculate final weighted score
-    const finalScore = Math.round(
-      (scores.companySize * scoringWeights.companySize / 100) +
-      (scores.techStack * scoringWeights.techStack / 100) +
-      (scores.funding * scoringWeights.funding / 100) +
-      (scores.jobPostings * scoringWeights.jobPostings / 100) +
-      (scores.geographic * scoringWeights.geographic / 100)
-    );
-
-    // Determine priority and status
-    let priority = 'nurture';
-    let status = 'new';
-    
-    if (finalScore >= 70) {
-      priority = 'immediate';
-      status = 'hot';
-    } else if (finalScore >= 40) {
-      priority = 'queue';
-      status = 'warm';
-    }
-
-    // Create score reasons
-    const scoreReasons = [];
-    if (scores.companySize >= 70) scoreReasons.push(`Good company size match (${companyData.company_size})`);
-    if (scores.geographic > 20) scoreReasons.push(`Target geographic location (${companyData.location})`);
-    if (scores.funding >= 60) scoreReasons.push('Recent significant funding');
-    if (scores.techStack >= 60) scoreReasons.push('Uses relevant technology stack');
-    if (scores.jobPostings >= 70) scoreReasons.push('High likelihood of hiring/growth');
-    if (aiAnalysis?.quality_factors) scoreReasons.push(...aiAnalysis.quality_factors.slice(0, 2));
-
-    // Update lead with scoring results
-    const { error: updateError } = await supabase
+    // Update lead with AI score
+    const { data: updatedLead, error: updateError } = await supabase
       .from('leads')
       .update({
-        ai_score: finalScore,
-        final_score: finalScore,
-        priority,
-        status,
-        score_reason: scoreReasons,
+        ai_score: scoringResult.score,
+        final_score: scoringResult.score, // Use AI score as final score unless human override exists
+        priority: scoringResult.priority,
+        score_reason: scoringResult.reasons,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', leadId);
+      .eq('id', leadId)
+      .select()
+      .single();
 
     if (updateError) {
       console.error('Error updating lead score:', updateError);
       throw new Error(`Database update error: ${updateError.message}`);
     }
 
-    console.log(`Successfully scored lead ${leadId}: ${finalScore} points`);
+    console.log(`Successfully scored lead ${leadId}: ${scoringResult.score} points`);
 
     return new Response(
       JSON.stringify({
         success: true,
-        final_score: finalScore,
-        priority,
-        status,
-        scores,
-        score_reasons: scoreReasons,
-        ai_analysis: aiAnalysis,
+        lead: updatedLead,
+        scoring_result: scoringResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

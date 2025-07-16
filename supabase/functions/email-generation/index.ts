@@ -7,36 +7,98 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface EmailGenerationRequest {
+  leadId: string;
+  template?: string;
+  customPrompt?: string;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { 
-      leadId, 
-      contactData, 
-      companyData, 
-      emailPrompt, 
-      signature, 
-      openaiApiKey 
-    } = await req.json();
+    const { leadId, template, customPrompt }: EmailGenerationRequest = await req.json();
+    
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
 
-    console.log('Generating email for lead:', leadId);
+    console.log('Starting email generation for lead:', leadId);
 
-    // Create Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Get lead data with enrichment
+    const { data: lead, error: leadError } = await supabaseClient
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
 
-    // Prepare the prompt with placeholders replaced
-    const personalizedPrompt = emailPrompt
-      .replace(/{contactName}/g, contactData.contact_name)
-      .replace(/{companyName}/g, companyData.company_name)
-      .replace(/{companyData}/g, JSON.stringify(companyData, null, 2))
-      .replace(/{contactData}/g, JSON.stringify(contactData, null, 2));
+    if (leadError || !lead) {
+      throw new Error('Lead not found');
+    }
 
-    // Call OpenAI to generate the email
+    // Get email settings from settings
+    const { data: settings } = await supabaseClient
+      .from('mining_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    // Prepare lead context for email generation
+    const leadContext = {
+      first_name: lead.contact_name.split(' ')[0],
+      full_name: lead.contact_name,
+      job_title: lead.job_title,
+      company_name: lead.company_name,
+      industry: lead.industry,
+      company_size: lead.company_size,
+      location: lead.location,
+      website: lead.website,
+      score: lead.final_score || lead.ai_score,
+      enrichment_data: lead.enrichment_data || {},
+    };
+
+    // Create email generation prompt
+    const emailPrompt = customPrompt || `
+You are an expert sales email writer. Generate a personalized cold outreach email for this lead.
+
+Lead Information:
+- Name: ${leadContext.first_name} ${leadContext.full_name}
+- Title: ${leadContext.job_title}
+- Company: ${leadContext.company_name}
+- Industry: ${leadContext.industry}
+- Company Size: ${leadContext.company_size}
+- Location: ${leadContext.location}
+- Website: ${leadContext.website}
+- Lead Score: ${leadContext.score}/100
+
+Additional Context: ${JSON.stringify(leadContext.enrichment_data, null, 2)}
+
+Email Requirements:
+- Use "${leadContext.first_name}" for personalization
+- Keep it professional but conversational
+- Length: 150-200 words maximum
+- Include a clear call-to-action
+- Reference something specific about their company/role
+- No generic sales language
+- Subject line should be compelling and personal
+
+Respond ONLY with valid JSON in this format:
+{
+  "subject": "Email subject line",
+  "content": "Email body content including greeting, body, and signature placeholder"
+}
+
+Note: The signature will be added automatically, so end with a professional closing like "Best regards," without adding an actual signature.`;
+
+    // Call ChatGPT for email generation
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+    if (!openaiApiKey) {
+      throw new Error('OpenAI API key not configured in Supabase secrets');
+    }
+
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -44,94 +106,71 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
+        model: 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert cold email writer. Write professional, personalized cold emails that focus on value proposition. Keep them concise and engaging. Do not include a signature - it will be added separately.'
+            content: 'You are an expert sales email writer specializing in personalized B2B outreach. Always respond with valid JSON only.'
           },
           {
             role: 'user',
-            content: personalizedPrompt
+            content: emailPrompt
           }
         ],
-        max_tokens: 500,
         temperature: 0.7,
+        max_tokens: 800,
       }),
     });
 
     if (!openaiResponse.ok) {
-      throw new Error(`OpenAI API error: ${openaiResponse.statusText}`);
+      throw new Error(`OpenAI API error: ${openaiResponse.status}`);
     }
 
     const openaiData = await openaiResponse.json();
-    const generatedEmail = openaiData.choices[0].message.content;
+    const emailResult = JSON.parse(openaiData.choices[0].message.content);
 
-    // Extract first name from contact name
-    const firstName = contactData.contact_name.split(' ')[0];
-    
-    // Prepare the final email with signature
-    const finalEmail = generatedEmail + '\n\n' + signature;
+    console.log('Email generated successfully');
 
-    // Generate a subject line
-    const subjectResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: [
-          {
-            role: 'system',
-            content: 'Generate a compelling, professional email subject line for a cold outreach email. Keep it under 50 characters and make it intriguing but not spammy.'
-          },
-          {
-            role: 'user',
-            content: `Company: ${companyData.company_name}\nContact: ${firstName}\nEmail content: ${generatedEmail}`
-          }
-        ],
-        max_tokens: 20,
-        temperature: 0.8,
-      }),
-    });
+    // Get email signature from settings (default if not set)
+    const emailSignature = settings?.email_signature || `
+Best regards,
+[Your Name]
+[Your Title]
+[Your Company]
+[Your Phone]
+[Your Email]`;
 
-    const subjectData = await subjectResponse.json();
-    const subject = subjectData.choices[0].message.content.replace(/['"]/g, '');
+    // Combine email content with signature
+    const finalEmailContent = `${emailResult.content}\n\n${emailSignature}`;
 
-    // Create email queue entry
-    const { data: queueEntry, error: queueError } = await supabase
+    // Save email to queue
+    const { data: emailQueue, error: queueError } = await supabaseClient
       .from('email_queue')
       .insert({
         lead_id: leadId,
-        subject: subject,
-        content: finalEmail,
-        status: 'pending_review',
-        recipient_email: contactData.email,
-        recipient_name: contactData.contact_name,
-        company_name: companyData.company_name,
-        generated_at: new Date().toISOString(),
+        recipient_email: lead.email,
+        subject: emailResult.subject,
+        content: finalEmailContent,
+        status: 'pending',
       })
       .select()
       .single();
 
     if (queueError) {
-      console.error('Error creating queue entry:', queueError);
       throw queueError;
     }
 
-    console.log('Email generated and queued successfully:', queueEntry.id);
+    console.log('Email added to queue:', emailQueue.id);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        emailId: queueEntry.id,
-        subject,
-        content: finalEmail,
-        message: 'Email generated and added to queue for review'
+      JSON.stringify({
+        success: true,
+        email: emailQueue,
+        generated_content: emailResult,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
 
   } catch (error) {
