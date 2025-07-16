@@ -10,7 +10,7 @@ import { Upload, Bot, GitMerge, Settings, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 const LeadMining = () => {
-  const [pendingLeads, setPendingLeads] = useState(0);
+  const [pendingCompanies, setPendingCompanies] = useState(23);
   const [dailyScrapedToday, setDailyScrapedToday] = useState(42);
   const [dailyLimit, setDailyLimit] = useState(100);
 
@@ -36,9 +36,9 @@ const LeadMining = () => {
                   {dailyScrapedToday} / {dailyLimit} leads
                 </div>
               </div>
-              {pendingLeads > 0 && (
+              {pendingCompanies > 0 && (
                 <Badge variant="destructive" className="animate-pulse">
-                  {pendingLeads} pending review
+                  {pendingCompanies} pending review
                 </Badge>
               )}
             </div>
@@ -64,9 +64,9 @@ const LeadMining = () => {
             <TabsTrigger value="review" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Review Queue
-              {pendingLeads > 0 && (
+              {pendingCompanies > 0 && (
                 <Badge variant="secondary" className="ml-1 text-xs">
-                  {pendingLeads}
+                  {pendingCompanies}
                 </Badge>
               )}
             </TabsTrigger>
@@ -85,7 +85,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ManualImport onCompaniesAdded={(count) => setPendingCompanies(prev => prev + count)} />
+                <ManualImport onLeadsAdded={(count) => setPendingCompanies(prev => prev + count)} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -102,7 +102,7 @@ const LeadMining = () => {
             <AutomatedScraping 
               dailyScraped={dailyScrapedToday}
               dailyLimit={dailyLimit}
-              onCompaniesFound={(count) => setPendingCompanies(prev => prev + count)}
+              onLeadsFound={(count) => setPendingCompanies(prev => prev + count)}
             />
               </CardContent>
             </Card>
@@ -117,7 +117,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <HybridMining onCompaniesFound={(count) => setPendingCompanies(prev => prev + count)} />
+                <HybridMining onLeadsFound={(count) => setPendingCompanies(prev => prev + count)} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -132,8 +132,8 @@ const LeadMining = () => {
               </CardHeader>
               <CardContent>
                 <PendingReview 
-                  pendingCount={pendingLeads}
-                  onLeadsProcessed={(approved) => setPendingLeads(0)}
+                  pendingCount={pendingCompanies}
+                  onLeadsProcessed={(approved) => setPendingCompanies(0)}
                 />
               </CardContent>
             </Card>

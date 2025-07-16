@@ -5,15 +5,13 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Plus, FileText, Download } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 interface ManualImportProps {
   onLeadsAdded: (count: number) => void;
 }
 
 export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
-  const { toast } = useToast();
   const [companyList, setCompanyList] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -42,29 +40,13 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
         throw new Error('No valid companies found in file');
       }
 
-      // Process companies through enrichment
-      for (const company of companies) {
-        await supabase.functions.invoke('lead-enrichment', {
-          body: { 
-            companyName: company.company_name,
-            website: company.website,
-            industry: company.industry,
-            location: company.location
-          }
-        });
-      }
+      // Simulate processing
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       onLeadsAdded(companies.length);
-      toast({
-        title: "File Processed",
-        description: `${companies.length} companies processed and queued for enrichment`,
-      });
+      toast.success(`${companies.length} companies processed and queued for enrichment`);
     } catch (error: any) {
-      toast({
-        title: "Processing Failed",
-        description: error.message || 'Failed to process file',
-        variant: "destructive",
-      });
+      toast.error(error.message || 'Failed to process file');
     } finally {
       setIsProcessing(false);
     }
@@ -87,30 +69,14 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
       });
     
     try {
-      // Process each company through enrichment
-      for (const company of companies) {
-        await supabase.functions.invoke('lead-enrichment', {
-          body: {
-            companyName: company.company_name,
-            website: company.website,
-            industry: company.industry,
-            location: company.location
-          }
-        });
-      }
+      // Simulate processing
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       onLeadsAdded(companies.length);
-      toast({
-        title: "Companies Added",
-        description: `${companies.length} companies queued for enrichment`,
-      });
+      toast.success(`${companies.length} companies queued for enrichment`);
       setCompanyList('');
     } catch (error: any) {
-      toast({
-        title: "Processing Failed",
-        description: error.message || 'Failed to process companies',
-        variant: "destructive",
-      });
+      toast.error(error.message || 'Failed to process companies');
     } finally {
       setIsProcessing(false);
     }

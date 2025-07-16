@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Mail, 
   Send, 
@@ -21,111 +20,92 @@ import {
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 interface EmailQueueItem {
   id: string;
-  lead_id: string;
+  decision_maker_id: string;
   subject: string;
   content: string;
   status: 'pending' | 'approved' | 'sent' | 'failed';
   recipient_email: string;
+  recipient_name: string;
+  company_name: string;
   created_at: string;
-  updated_at: string;
   sent_at?: string;
-  approved_by?: string;
   approved_at?: string;
   error_message?: string;
-  leads?: {
-    contact_name: string;
-    company_name: string;
-  };
 }
 
-const EmailQueue = () => {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
+// Mock data for prototype
+const mockEmailQueue: EmailQueueItem[] = [
+  {
+    id: '1',
+    decision_maker_id: '1',
+    subject: 'Partnership Opportunity with TechCorp',
+    content: `Hi Sarah,
+
+I saw TechCorp's recent Series A announcement - congratulations! Your AI-powered software solutions for enterprises are impressive.
+
+I'd love to discuss how our platform could help accelerate your growth during this exciting phase. We specialize in helping companies like yours scale their operations efficiently.
+
+Would you be open to a brief 15-minute call this week to explore potential synergies?
+
+Best regards,
+Alex`,
+    recipient_email: 'sarah.johnson@techcorp.com',
+    recipient_name: 'Sarah Johnson',
+    company_name: 'TechCorp Innovation',
+    status: 'pending',
+    created_at: '2024-01-19T09:00:00Z'
+  },
+  {
+    id: '2',
+    decision_maker_id: '3',
+    subject: 'Scaling Solutions for StartupFlow',
+    content: `Hi Emma,
+
+I noticed StartupFlow is hiring aggressively - 10+ engineer positions posted! Your financial workflow automation platform is exactly the kind of innovative solution the market needs.
+
+Our platform has helped similar fintech startups streamline their growth processes. Would you be interested in learning how we could support StartupFlow's expansion?
+
+Looking forward to connecting,
+Alex`,
+    recipient_email: 'emma@startupflow.io',
+    recipient_name: 'Emma Williams',
+    company_name: 'StartupFlow',
+    status: 'pending',
+    created_at: '2024-01-19T10:30:00Z'
+  },
+  {
+    id: '3',
+    decision_maker_id: '4',
+    subject: 'Congratulations on the AI Suite Launch',
+    content: `Hi David,
+
+Congratulations on launching the AI Analytics Suite! The market response has been fantastic from what I've seen.
+
+I'd love to explore potential integrations between our platforms. Our solution could complement your analytics suite beautifully.
+
+Would you be available for a quick call to discuss collaboration opportunities?
+
+Best,
+Alex`,
+    recipient_email: 'david.rodriguez@datainsights.pro',
+    recipient_name: 'David Rodriguez',
+    company_name: 'DataInsights Pro',
+    status: 'sent',
+    created_at: '2024-01-18T14:00:00Z',
+    sent_at: '2024-01-18T14:05:00Z'
+  }
+];
+
+export default function EmailQueue() {
+  const [emailQueue, setEmailQueue] = useState<EmailQueueItem[]>(mockEmailQueue);
   const [editingEmail, setEditingEmail] = useState<EmailQueueItem | null>(null);
   const [editedSubject, setEditedSubject] = useState("");
   const [editedContent, setEditedContent] = useState("");
-
-  // Fetch email queue with leads data
-  const { data: emailQueue = [], isLoading } = useQuery({
-    queryKey: ['email-queue'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('email_queue')
-        .select(`
-          *,
-          leads (
-            contact_name,
-            company_name
-          )
-        `)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      return data as EmailQueueItem[];
-    },
-  });
-
-  // Update email mutation
-  const updateEmailMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<EmailQueueItem> }) => {
-      const { data, error } = await supabase
-        .from('email_queue')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['email-queue'] });
-      toast({
-        title: "Email Updated",
-        description: "Email has been updated successfully.",
-      });
-      setEditingEmail(null);
-    },
-    onError: (error) => {
-      toast({
-        title: "Update Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Delete email mutation
-  const deleteEmailMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('email_queue')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['email-queue'] });
-      toast({
-        title: "Email Deleted",
-        description: "Email has been removed from the queue.",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Delete Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleEdit = (email: EmailQueueItem) => {
     setEditingEmail(email);
@@ -136,39 +116,43 @@ const EmailQueue = () => {
   const handleSaveEdit = () => {
     if (!editingEmail) return;
     
-    updateEmailMutation.mutate({
-      id: editingEmail.id,
-      updates: {
-        subject: editedSubject,
-        content: editedContent,
-      }
-    });
+    setEmailQueue(prev => prev.map(email => 
+      email.id === editingEmail.id 
+        ? { ...email, subject: editedSubject, content: editedContent }
+        : email
+    ));
+    
+    setEditingEmail(null);
+    toast.success('Email updated successfully');
   };
 
   const handleApprove = (id: string) => {
-    updateEmailMutation.mutate({
-      id,
-      updates: {
-        status: 'approved',
-        approved_at: new Date().toISOString(),
-      }
-    });
+    setEmailQueue(prev => prev.map(email => 
+      email.id === id 
+        ? { ...email, status: 'approved' as const, approved_at: new Date().toISOString() }
+        : email
+    ));
+    toast.success('Email approved');
   };
 
   const handleReject = (id: string) => {
-    updateEmailMutation.mutate({
-      id,
-      updates: {
-        status: 'failed',
-        error_message: 'Rejected by user',
-      }
-    });
+    setEmailQueue(prev => prev.map(email => 
+      email.id === id 
+        ? { ...email, status: 'failed' as const, error_message: 'Rejected by user' }
+        : email
+    ));
+    toast.success('Email rejected');
+  };
+
+  const deleteEmail = (emailId: string) => {
+    setEmailQueue(prev => prev.filter(email => email.id !== emailId));
+    toast.success('Email deleted from queue');
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'warning';
-      case 'approved': return 'success';
+      case 'pending': return 'secondary';
+      case 'approved': return 'default';
       case 'sent': return 'default';
       case 'failed': return 'destructive';
       default: return 'secondary';
@@ -231,10 +215,10 @@ const EmailQueue = () => {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
-                             <CardTitle className="flex items-center gap-2">
-                               <Mail className="h-5 w-5" />
-                               {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
-                             </CardTitle>
+                            <CardTitle className="flex items-center gap-2">
+                              <Mail className="h-5 w-5" />
+                              {email.company_name} - {email.recipient_name}
+                            </CardTitle>
                             <CardDescription>{email.recipient_email}</CardDescription>
                           </div>
                           <Badge variant={getStatusColor(email.status) as any} className="flex items-center gap-1">
@@ -267,9 +251,9 @@ const EmailQueue = () => {
                             <DialogContent className="max-w-2xl">
                               <DialogHeader>
                                 <DialogTitle>Email Preview</DialogTitle>
-                                 <DialogDescription>
-                                   To: {email.recipient_email} ({email.leads?.contact_name || 'Unknown Contact'})
-                                 </DialogDescription>
+                                <DialogDescription>
+                                  To: {email.recipient_email} ({email.recipient_name})
+                                </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div>
@@ -295,7 +279,6 @@ const EmailQueue = () => {
                             variant="default" 
                             size="sm" 
                             onClick={() => handleApprove(email.id)}
-                            disabled={updateEmailMutation.isPending}
                           >
                             <Check className="h-4 w-4 mr-2" />
                             Approve
@@ -305,7 +288,6 @@ const EmailQueue = () => {
                             variant="outline" 
                             size="sm" 
                             onClick={() => handleReject(email.id)}
-                            disabled={updateEmailMutation.isPending}
                           >
                             <X className="h-4 w-4 mr-2" />
                             Reject
@@ -314,8 +296,7 @@ const EmailQueue = () => {
                           <Button 
                             variant="destructive" 
                             size="sm" 
-                            onClick={() => deleteEmailMutation.mutate(email.id)}
-                            disabled={deleteEmailMutation.isPending}
+                            onClick={() => deleteEmail(email.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -334,19 +315,17 @@ const EmailQueue = () => {
                   )}
                 </TabsContent>
 
-                {/* Other tabs with similar structure for approved, sent, rejected */}
                 <TabsContent value="approved">
-                  {/* Similar structure for approved emails */}
                   <div className="space-y-4">
                     {approvedEmails.map((email) => (
                       <Card key={email.id}>
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                               <CardTitle className="flex items-center gap-2">
-                                 <Mail className="h-5 w-5" />
-                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
-                               </CardTitle>
+                              <CardTitle className="flex items-center gap-2">
+                                <Mail className="h-5 w-5" />
+                                {email.company_name} - {email.recipient_name}
+                              </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="default" className="flex items-center gap-1">
@@ -356,9 +335,9 @@ const EmailQueue = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                           <p className="text-sm text-muted-foreground">
-                             Ready to send • Approved on {email.approved_at ? new Date(email.approved_at).toLocaleDateString() : 'Unknown'}
-                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            Ready to send • Approved on {email.approved_at ? new Date(email.approved_at).toLocaleDateString() : 'Unknown'}
+                          </p>
                         </CardContent>
                       </Card>
                     ))}
@@ -372,10 +351,10 @@ const EmailQueue = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                               <CardTitle className="flex items-center gap-2">
-                                 <Mail className="h-5 w-5" />
-                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
-                               </CardTitle>
+                              <CardTitle className="flex items-center gap-2">
+                                <Mail className="h-5 w-5" />
+                                {email.company_name} - {email.recipient_name}
+                              </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="default" className="flex items-center gap-1">
@@ -401,10 +380,10 @@ const EmailQueue = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                               <CardTitle className="flex items-center gap-2">
-                                 <Mail className="h-5 w-5" />
-                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
-                               </CardTitle>
+                              <CardTitle className="flex items-center gap-2">
+                                <Mail className="h-5 w-5" />
+                                {email.company_name} - {email.recipient_name}
+                              </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="destructive" className="flex items-center gap-1">
@@ -414,9 +393,9 @@ const EmailQueue = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                           <p className="text-sm text-muted-foreground">
-                             Failed - {email.error_message || 'No error message'}
-                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            Failed - {email.error_message || 'No error message'}
+                          </p>
                         </CardContent>
                       </Card>
                     ))}
@@ -441,22 +420,24 @@ const EmailQueue = () => {
                           id="edit-subject"
                           value={editedSubject}
                           onChange={(e) => setEditedSubject(e.target.value)}
+                          className="mt-1"
                         />
                       </div>
                       <div>
                         <Label htmlFor="edit-content">Content</Label>
                         <Textarea
                           id="edit-content"
-                          rows={15}
                           value={editedContent}
                           onChange={(e) => setEditedContent(e.target.value)}
+                          rows={10}
+                          className="mt-1"
                         />
                       </div>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex gap-2 justify-end">
                         <Button variant="outline" onClick={() => setEditingEmail(null)}>
                           Cancel
                         </Button>
-                        <Button onClick={handleSaveEdit} disabled={updateEmailMutation.isPending}>
+                        <Button onClick={handleSaveEdit}>
                           Save Changes
                         </Button>
                       </div>
@@ -470,6 +451,4 @@ const EmailQueue = () => {
       </div>
     </SidebarProvider>
   );
-};
-
-export default EmailQueue;
+}

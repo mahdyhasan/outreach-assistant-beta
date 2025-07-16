@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PendingReviewProps {
   pendingCount: number;
-  onCompaniesProcessed: (approved: number) => void;
+  onLeadsProcessed: (approved: number) => void;
 }
 
 interface Company {
@@ -30,7 +30,7 @@ interface Company {
   enrichment_data: any;
 }
 
-export const PendingReview = ({ pendingCount, onCompaniesProcessed }: PendingReviewProps) => {
+export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
@@ -63,7 +63,7 @@ export const PendingReview = ({ pendingCount, onCompaniesProcessed }: PendingRev
     },
     onSuccess: (count) => {
       queryClient.invalidateQueries({ queryKey: ['pending-companies'] });
-      onCompaniesProcessed(count);
+      onLeadsProcessed(count);
       toast({
         title: "Companies Approved",
         description: `${count} companies have been approved and are ready for enrichment`,
