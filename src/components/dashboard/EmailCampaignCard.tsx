@@ -14,23 +14,21 @@ export function EmailCampaignCard() {
   const { data: outreachStats } = useQuery({
     queryKey: ["outreach-stats"],
     queryFn: async () => {
-      const { count: emailSent } = await supabase
-        .from("outreach_activities")
-        .select("*", { count: "exact", head: true })
-        .eq("type", "email");
+      const { count: totalCompanies } = await supabase
+        .from("companies")
+        .select("*", { count: "exact", head: true });
 
-      const { count: emailResponses } = await supabase
-        .from("outreach_activities")
+      const { count: qualifiedCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .eq("type", "email")
-        .not("response_at", "is", null);
+        .gte("ai_score", 70);
 
-      const emailRate = emailSent && emailResponses 
-        ? ((emailResponses / emailSent) * 100).toFixed(1)
+      const qualificationRate = totalCompanies && qualifiedCompanies 
+        ? ((qualifiedCompanies / totalCompanies) * 100).toFixed(1)
         : "0.0";
 
       return [
-        { channel: "Email", sent: emailSent || 0, responses: emailResponses || 0, rate: `${emailRate}%` }
+        { channel: "Discovery", sent: totalCompanies || 0, responses: qualifiedCompanies || 0, rate: `${qualificationRate}%` }
       ];
     },
     refetchInterval: 30000,

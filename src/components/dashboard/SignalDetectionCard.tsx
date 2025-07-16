@@ -18,7 +18,7 @@ export function SignalDetectionCard() {
       
       return data?.map(signal => ({
         id: signal.id,
-        company: signal.company_name,
+        company: `Company ${signal.company_id.slice(-8)}`, // Use partial company ID as display name
         type: signal.signal_type,
         signal: signal.signal_description || signal.signal_title,
         priority: signal.priority,

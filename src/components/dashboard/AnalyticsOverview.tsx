@@ -11,27 +11,21 @@ export function AnalyticsOverview() {
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["analytics-metrics"],
     queryFn: async () => {
-      // Get email response rate
-      const { count: totalEmails } = await supabase
-        .from("outreach_activities")
-        .select("*", { count: "exact", head: true })
-        .eq("type", "email");
-
-      const { count: emailResponses } = await supabase
-        .from("outreach_activities")
-        .select("*", { count: "exact", head: true })
-        .eq("type", "email")
-        .not("response_at", "is", null);
-
-      const emailResponseRate = totalEmails && emailResponses
-        ? ((emailResponses / totalEmails) * 100).toFixed(1)
-        : "0.0";
-
-      // Get conversion to meeting (simplified as high score companies for now)
+      // Get companies for analytics (outreach_activities table doesn't exist)
       const { count: totalCompanies } = await supabase
         .from("companies")
         .select("*", { count: "exact", head: true });
 
+      const { count: enrichedCompanies } = await supabase
+        .from("companies")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "enriched");
+
+      const enrichmentRate = totalCompanies && enrichedCompanies
+        ? ((enrichedCompanies / totalCompanies) * 100).toFixed(1)
+        : "0.0";
+
+      // Get conversion to meeting (simplified as high score companies for now)
       const { count: highScoreCompanies } = await supabase
         .from("companies")
         .select("*", { count: "exact", head: true })
@@ -53,8 +47,8 @@ export function AnalyticsOverview() {
           target: 35
         },
         {
-          label: "Email Response Rate",
-          value: `${emailResponseRate}%`,
+          label: "Enrichment Rate",
+          value: `${enrichmentRate}%`,
           change: "+0.8%",
           trend: "up" as const,
           target: 20

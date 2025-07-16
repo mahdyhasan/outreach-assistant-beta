@@ -35,18 +35,16 @@ export function useDashboardStats() {
         .select("*", { count: "exact", head: true })
         .eq("processed", false);
 
-      // Calculate response rate from outreach activities
-      const { data: outreachData } = await supabase
-        .from("outreach_activities")
-        .select("response_at")
-        .not("response_at", "is", null);
+      // Calculate qualification rate from companies (outreach_activities doesn't exist)
+      const { count: qualifiedCompanies } = await supabase
+        .from("companies")
+        .select("*", { count: "exact", head: true })
+        .gte("ai_score", 70);
 
-      const { count: totalOutreach } = await supabase
-        .from("outreach_activities")
-        .select("*", { count: "exact", head: true });
+      const totalOutreach = totalCompanies || 0;
 
-      const responseRate = totalOutreach && outreachData
-        ? ((outreachData.length / totalOutreach) * 100).toFixed(1)
+      const responseRate = totalOutreach && qualifiedCompanies
+        ? ((qualifiedCompanies / totalOutreach) * 100).toFixed(1)
         : "0.0";
 
       const highQualityPercentage = totalCompanies && highQualityCompanies
