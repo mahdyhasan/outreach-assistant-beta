@@ -146,6 +146,62 @@ export type Database = {
         }
         Relationships: []
       }
+      email_queue: {
+        Row: {
+          company_name: string
+          content: string
+          created_at: string
+          generated_at: string
+          id: string
+          lead_id: string | null
+          recipient_email: string
+          recipient_name: string
+          reviewed_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          company_name: string
+          content: string
+          created_at?: string
+          generated_at?: string
+          id?: string
+          lead_id?: string | null
+          recipient_email: string
+          recipient_name: string
+          reviewed_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          content?: string
+          created_at?: string
+          generated_at?: string
+          id?: string
+          lead_id?: string | null
+          recipient_email?: string
+          recipient_name?: string
+          reviewed_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_sequences: {
         Row: {
           created_at: string

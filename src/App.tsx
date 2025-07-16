@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import LeadMining from "./pages/LeadMining";
+import EmailQueue from "./pages/EmailQueue";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -19,8 +20,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/leads" element={<Index />} />
-          <Route path="/mining" element={<LeadMining />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/email-queue" element={<EmailQueue />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
