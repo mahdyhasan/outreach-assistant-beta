@@ -85,7 +85,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ManualImport onLeadsAdded={(count) => setPendingLeads(prev => prev + count)} />
+                <ManualImport onCompaniesAdded={(count) => setPendingCompanies(prev => prev + count)} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -99,11 +99,11 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <AutomatedScraping 
-                  dailyScraped={dailyScrapedToday}
-                  dailyLimit={dailyLimit}
-                  onLeadsFound={(count) => setPendingLeads(prev => prev + count)}
-                />
+            <AutomatedScraping 
+              dailyScraped={dailyScrapedToday}
+              dailyLimit={dailyLimit}
+              onCompaniesFound={(count) => setPendingCompanies(prev => prev + count)}
+            />
               </CardContent>
             </Card>
           </TabsContent>
@@ -117,7 +117,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <HybridMining onLeadsFound={(count) => setPendingLeads(prev => prev + count)} />
+                <HybridMining onCompaniesFound={(count) => setPendingCompanies(prev => prev + count)} />
               </CardContent>
             </Card>
           </TabsContent>

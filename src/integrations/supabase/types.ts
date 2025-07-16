@@ -14,50 +14,112 @@ export type Database = {
   }
   public: {
     Tables: {
-      campaign_enrollments: {
+      companies: {
         Row: {
-          campaign_id: string
-          completed_at: string | null
-          current_sequence_step: number
-          enrolled_at: string
+          ai_score: number | null
+          company_name: string
+          created_at: string
+          description: string | null
+          employee_size: string | null
+          enrichment_data: Json | null
+          founded: string | null
           id: string
-          lead_id: string
-          next_email_date: string | null
-          status: string
+          industry: string | null
+          linkedin_profile: string | null
+          public_email: string | null
+          public_phone: string | null
+          source: string | null
+          status: string | null
+          updated_at: string
+          website: string | null
         }
         Insert: {
-          campaign_id: string
-          completed_at?: string | null
-          current_sequence_step?: number
-          enrolled_at?: string
+          ai_score?: number | null
+          company_name: string
+          created_at?: string
+          description?: string | null
+          employee_size?: string | null
+          enrichment_data?: Json | null
+          founded?: string | null
           id?: string
-          lead_id: string
-          next_email_date?: string | null
-          status?: string
+          industry?: string | null
+          linkedin_profile?: string | null
+          public_email?: string | null
+          public_phone?: string | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+          website?: string | null
         }
         Update: {
-          campaign_id?: string
-          completed_at?: string | null
-          current_sequence_step?: number
-          enrolled_at?: string
+          ai_score?: number | null
+          company_name?: string
+          created_at?: string
+          description?: string | null
+          employee_size?: string | null
+          enrichment_data?: Json | null
+          founded?: string | null
           id?: string
-          lead_id?: string
-          next_email_date?: string | null
-          status?: string
+          industry?: string | null
+          linkedin_profile?: string | null
+          public_email?: string | null
+          public_phone?: string | null
+          source?: string | null
+          status?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      contacts: {
+        Row: {
+          company_id: string
+          contact_type: string | null
+          created_at: string
+          designation: string
+          email: string | null
+          facebook_profile: string | null
+          id: string
+          instagram_profile: string | null
+          linkedin_profile: string | null
+          name: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contact_type?: string | null
+          created_at?: string
+          designation: string
+          email?: string | null
+          facebook_profile?: string | null
+          id?: string
+          instagram_profile?: string | null
+          linkedin_profile?: string | null
+          name: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contact_type?: string | null
+          created_at?: string
+          designation?: string
+          email?: string | null
+          facebook_profile?: string | null
+          id?: string
+          instagram_profile?: string | null
+          linkedin_profile?: string | null
+          name?: string
+          phone?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "campaign_enrollments_campaign_id_fkey"
-            columns: ["campaign_id"]
+            foreignKeyName: "contacts_company_id_fkey"
+            columns: ["company_id"]
             isOneToOne: false
-            referencedRelation: "email_campaigns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "campaign_enrollments_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -107,227 +169,6 @@ export type Database = {
           success_count?: number
           sync_filters?: Json | null
           sync_type?: string
-        }
-        Relationships: []
-      }
-      email_campaigns: {
-        Row: {
-          created_at: string
-          description: string | null
-          emails_sent: number
-          id: string
-          leads_count: number
-          name: string
-          responses_count: number
-          status: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          description?: string | null
-          emails_sent?: number
-          id?: string
-          leads_count?: number
-          name: string
-          responses_count?: number
-          status?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          description?: string | null
-          emails_sent?: number
-          id?: string
-          leads_count?: number
-          name?: string
-          responses_count?: number
-          status?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      email_queue: {
-        Row: {
-          company_name: string
-          content: string
-          created_at: string
-          generated_at: string
-          id: string
-          lead_id: string | null
-          recipient_email: string
-          recipient_name: string
-          reviewed_at: string | null
-          sent_at: string | null
-          status: string
-          subject: string
-          updated_at: string
-        }
-        Insert: {
-          company_name: string
-          content: string
-          created_at?: string
-          generated_at?: string
-          id?: string
-          lead_id?: string | null
-          recipient_email: string
-          recipient_name: string
-          reviewed_at?: string | null
-          sent_at?: string | null
-          status?: string
-          subject: string
-          updated_at?: string
-        }
-        Update: {
-          company_name?: string
-          content?: string
-          created_at?: string
-          generated_at?: string
-          id?: string
-          lead_id?: string | null
-          recipient_email?: string
-          recipient_name?: string
-          reviewed_at?: string | null
-          sent_at?: string | null
-          status?: string
-          subject?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "email_queue_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      email_sequences: {
-        Row: {
-          created_at: string
-          delay_days: number
-          description: string | null
-          email_content: string
-          id: string
-          is_active: boolean
-          name: string
-          sequence_order: number
-          subject_line: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          delay_days?: number
-          description?: string | null
-          email_content: string
-          id?: string
-          is_active?: boolean
-          name: string
-          sequence_order: number
-          subject_line: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          delay_days?: number
-          description?: string | null
-          email_content?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          sequence_order?: number
-          subject_line?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      leads: {
-        Row: {
-          ai_score: number
-          assigned_to: string | null
-          company_name: string
-          company_size: string
-          contact_name: string
-          created_at: string | null
-          email: string
-          enrichment_data: Json | null
-          final_score: number
-          followup_count: number | null
-          human_feedback: Json | null
-          human_score: number | null
-          id: string
-          industry: string
-          job_title: string
-          last_contact_date: string | null
-          linkedin_url: string | null
-          location: string
-          next_followup_date: string | null
-          phone: string | null
-          priority: string
-          response_tag: string | null
-          score_reason: string[] | null
-          source: string
-          status: string
-          updated_at: string | null
-          website: string | null
-        }
-        Insert: {
-          ai_score: number
-          assigned_to?: string | null
-          company_name: string
-          company_size: string
-          contact_name: string
-          created_at?: string | null
-          email: string
-          enrichment_data?: Json | null
-          final_score: number
-          followup_count?: number | null
-          human_feedback?: Json | null
-          human_score?: number | null
-          id?: string
-          industry: string
-          job_title: string
-          last_contact_date?: string | null
-          linkedin_url?: string | null
-          location: string
-          next_followup_date?: string | null
-          phone?: string | null
-          priority: string
-          response_tag?: string | null
-          score_reason?: string[] | null
-          source: string
-          status: string
-          updated_at?: string | null
-          website?: string | null
-        }
-        Update: {
-          ai_score?: number
-          assigned_to?: string | null
-          company_name?: string
-          company_size?: string
-          contact_name?: string
-          created_at?: string | null
-          email?: string
-          enrichment_data?: Json | null
-          final_score?: number
-          followup_count?: number | null
-          human_feedback?: Json | null
-          human_score?: number | null
-          id?: string
-          industry?: string
-          job_title?: string
-          last_contact_date?: string | null
-          linkedin_url?: string | null
-          location?: string
-          next_followup_date?: string | null
-          phone?: string | null
-          priority?: string
-          response_tag?: string | null
-          score_reason?: string[] | null
-          source?: string
-          status?: string
-          updated_at?: string | null
-          website?: string | null
         }
         Relationships: []
       }
@@ -392,15 +233,7 @@ export type Database = {
           subject?: string | null
           type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "outreach_activities_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       signals: {
         Row: {
@@ -445,15 +278,7 @@ export type Database = {
           signal_url?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "signals_lead_id_fkey"
-            columns: ["lead_id"]
-            isOneToOne: false
-            referencedRelation: "leads"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
     }
     Views: {
