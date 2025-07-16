@@ -6,6 +6,14 @@ interface APIKey {
   key: string;
   description: string;
   isActive: boolean;
+  customName?: string; // For custom APIs
+  // Zoho Email specific fields
+  emailHost?: string;
+  emailUsername?: string;
+  emailPassword?: string;
+  imapHost?: string;
+  imapUsername?: string;
+  imapPassword?: string;
 }
 
 interface ScoringWeights {
@@ -16,14 +24,14 @@ interface ScoringWeights {
   geographic: number;
 }
 
-interface GeographicScoring {
-  uk: number;
-  australia: number;
-  singapore: number;
-  malaysia: number;
-  qatar: number;
-  westernEurope: number;
-  other: number;
+interface TargetCountries {
+  selectedCountries: string[];
+  availableCountries: string[];
+}
+
+interface EmailSettings {
+  signature: string;
+  emailPrompt: string;
 }
 
 interface MiningSettings {
@@ -43,14 +51,21 @@ export function useSettings() {
     jobPostings: 20,
     geographic: 15
   });
-  const [geographicScoring, setGeographicScoring] = useState<GeographicScoring>({
-    uk: 40,
-    australia: 40,
-    singapore: 30,
-    malaysia: 30,
-    qatar: 30,
-    westernEurope: 25,
-    other: 10
+  const [targetCountries, setTargetCountries] = useState<TargetCountries>({
+    selectedCountries: ['United Kingdom', 'Australia'],
+    availableCountries: [
+      'United Kingdom', 'Australia', 'Singapore', 'Malaysia', 'Qatar',
+      'Canada', 'United States', 'Germany', 'France', 'Netherlands',
+      'Switzerland', 'Ireland', 'New Zealand', 'UAE', 'India'
+    ]
+  });
+  const [emailSettings, setEmailSettings] = useState<EmailSettings>({
+    signature: `Best regards,\n[Your Name]\n[Your Company]\n[Your Contact Information]`,
+    emailPrompt: `Write a professional cold email to {contactName} at {companyName}. 
+Use the following company data: {companyData}
+Use the following contact data: {contactData}
+Keep it concise, personalized, and focused on value proposition.
+Always use the contact's first name in greeting.`
   });
   const [miningSettings, setMiningSettings] = useState<MiningSettings>({
     dailyLimit: 100,
@@ -64,7 +79,8 @@ export function useSettings() {
   useEffect(() => {
     const savedApiKeys = localStorage.getItem('apiKeys');
     const savedScoringWeights = localStorage.getItem('scoringWeights');
-    const savedGeographicScoring = localStorage.getItem('geographicScoring');
+    const savedTargetCountries = localStorage.getItem('targetCountries');
+    const savedEmailSettings = localStorage.getItem('emailSettings');
     const savedMiningSettings = localStorage.getItem('miningSettings');
 
     if (savedApiKeys) {
@@ -92,6 +108,26 @@ export function useSettings() {
           key: "",
           description: "For real-time company intelligence and signals",
           isActive: false
+        },
+        {
+          id: "google-search",
+          name: "Google Search API",
+          key: "",
+          description: "For lead discovery and company research",
+          isActive: false
+        },
+        {
+          id: "zoho-email",
+          name: "Zoho Email",
+          key: "",
+          description: "For email sending and management",
+          isActive: false,
+          emailHost: "",
+          emailUsername: "",
+          emailPassword: "",
+          imapHost: "",
+          imapUsername: "",
+          imapPassword: ""
         }
       ]);
     }
@@ -100,8 +136,12 @@ export function useSettings() {
       setScoringWeights(JSON.parse(savedScoringWeights));
     }
 
-    if (savedGeographicScoring) {
-      setGeographicScoring(JSON.parse(savedGeographicScoring));
+    if (savedTargetCountries) {
+      setTargetCountries(JSON.parse(savedTargetCountries));
+    }
+
+    if (savedEmailSettings) {
+      setEmailSettings(JSON.parse(savedEmailSettings));
     }
 
     if (savedMiningSettings) {
@@ -122,7 +162,8 @@ export function useSettings() {
   const saveSettings = () => {
     localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
     localStorage.setItem('scoringWeights', JSON.stringify(scoringWeights));
-    localStorage.setItem('geographicScoring', JSON.stringify(geographicScoring));
+    localStorage.setItem('targetCountries', JSON.stringify(targetCountries));
+    localStorage.setItem('emailSettings', JSON.stringify(emailSettings));
     localStorage.setItem('miningSettings', JSON.stringify(miningSettings));
   };
 
@@ -130,13 +171,15 @@ export function useSettings() {
     // State
     apiKeys,
     scoringWeights,
-    geographicScoring,
+    targetCountries,
+    emailSettings,
     miningSettings,
     
     // Setters
     setApiKeys,
     setScoringWeights,
-    setGeographicScoring,
+    setTargetCountries,
+    setEmailSettings,
     setMiningSettings,
     
     // Utilities

@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Key, 
   Globe, 
@@ -18,96 +19,33 @@ import {
   EyeOff, 
   Trash2,
   Plus,
-  AlertCircle
+  AlertCircle,
+  Mail,
+  Users
 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { useToast } from "@/hooks/use-toast";
-
-interface APIKey {
-  id: string;
-  name: string;
-  key: string;
-  description: string;
-  isActive: boolean;
-}
-
-interface ScoringWeights {
-  companySize: number;
-  techStack: number;
-  funding: number;
-  jobPostings: number;
-  geographic: number;
-}
-
-interface GeographicScoring {
-  uk: number;
-  australia: number;
-  singapore: number;
-  malaysia: number;
-  qatar: number;
-  westernEurope: number;
-  other: number;
-}
+import { useSettings } from "@/hooks/use-settings";
 
 const Settings = () => {
   const { toast } = useToast();
-  const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
+  const {
+    apiKeys,
+    setApiKeys,
+    scoringWeights,
+    setScoringWeights,
+    targetCountries,
+    setTargetCountries,
+    emailSettings,
+    setEmailSettings,
+    miningSettings,
+    setMiningSettings,
+    saveSettings
+  } = useSettings();
   
-  // API Keys State
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([
-    {
-      id: "apollo",
-      name: "Apollo.io API",
-      key: "",
-      description: "For lead enrichment and company data",
-      isActive: true
-    },
-    {
-      id: "openai",
-      name: "OpenAI API",
-      key: "",
-      description: "For AI-powered lead scoring and analysis",
-      isActive: true
-    },
-    {
-      id: "perplexity",
-      name: "Perplexity API",
-      key: "",
-      description: "For real-time company intelligence and signals",
-      isActive: false
-    }
-  ]);
-
-  // Scoring Weights State
-  const [scoringWeights, setScoringWeights] = useState<ScoringWeights>({
-    companySize: 30,
-    techStack: 25,
-    funding: 25,
-    jobPostings: 20,
-    geographic: 15
-  });
-
-  // Geographic Scoring State
-  const [geographicScoring, setGeographicScoring] = useState<GeographicScoring>({
-    uk: 40,
-    australia: 40,
-    singapore: 30,
-    malaysia: 30,
-    qatar: 30,
-    westernEurope: 25,
-    other: 10
-  });
-
-  // Mining Settings State
-  const [miningSettings, setMiningSettings] = useState({
-    dailyLimit: 100,
-    autoApprovalThreshold: 70,
-    frequencyHours: 24,
-    enableSignalDetection: true,
-    enableAutoEnrichment: true
-  });
+  const [showKeys, setShowKeys] = useState<{ [key: string]: boolean }>({});
 
   const toggleKeyVisibility = (keyId: string) => {
     setShowKeys(prev => ({
@@ -116,9 +54,9 @@ const Settings = () => {
     }));
   };
 
-  const updateApiKey = (keyId: string, newKey: string) => {
+  const updateApiKey = (keyId: string, field: string, value: string) => {
     setApiKeys(prev => prev.map(api => 
-      api.id === keyId ? { ...api, key: newKey } : api
+      api.id === keyId ? { ...api, [field]: value } : api
     ));
   };
 
@@ -137,27 +75,33 @@ const Settings = () => {
   };
 
   const addNewApiKey = () => {
-    const newKey: APIKey = {
+    const newKey = {
       id: `custom-${Date.now()}`,
       name: "Custom API",
       key: "",
       description: "Custom API integration",
-      isActive: false
+      isActive: false,
+      customName: ""
     };
     setApiKeys(prev => [...prev, newKey]);
   };
 
-  const saveSettings = () => {
-    // Save to localStorage for now
-    localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
-    localStorage.setItem('scoringWeights', JSON.stringify(scoringWeights));
-    localStorage.setItem('geographicScoring', JSON.stringify(geographicScoring));
-    localStorage.setItem('miningSettings', JSON.stringify(miningSettings));
-    
+  const handleSave = () => {
+    saveSettings();
     toast({
       title: "Settings Saved",
       description: "All your settings have been saved successfully.",
     });
+  };
+
+  const toggleCountrySelection = (country: string) => {
+    const isSelected = targetCountries.selectedCountries.includes(country);
+    setTargetCountries(prev => ({
+      ...prev,
+      selectedCountries: isSelected
+        ? prev.selectedCountries.filter(c => c !== country)
+        : [...prev.selectedCountries, country]
+    }));
   };
 
   return (
@@ -176,10 +120,11 @@ const Settings = () => {
               </div>
 
               <Tabs defaultValue="api-keys" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-5">
                   <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-                  <TabsTrigger value="scoring">Scoring Engine</TabsTrigger>
-                  <TabsTrigger value="geographic">Geographic</TabsTrigger>
+                  <TabsTrigger value="scoring">Scoring</TabsTrigger>
+                  <TabsTrigger value="countries">Countries</TabsTrigger>
+                  <TabsTrigger value="email">Email</TabsTrigger>
                   <TabsTrigger value="mining">Mining</TabsTrigger>
                 </TabsList>
 
@@ -201,7 +146,7 @@ const Settings = () => {
                           <div className="flex items-center justify-between">
                             <div>
                               <h3 className="font-medium flex items-center gap-2">
-                                {api.name}
+                                {api.customName || api.name}
                                 <Badge variant={api.isActive ? "default" : "secondary"}>
                                   {api.isActive ? "Active" : "Inactive"}
                                 </Badge>
@@ -224,6 +169,19 @@ const Settings = () => {
                             </div>
                           </div>
                           
+                          {/* Custom API name field */}
+                          {api.id.startsWith('custom-') && (
+                            <div className="space-y-2">
+                              <Label htmlFor={`name-${api.id}`}>Custom API Name</Label>
+                              <Input
+                                id={`name-${api.id}`}
+                                value={api.customName || ""}
+                                onChange={(e) => updateApiKey(api.id, 'customName', e.target.value)}
+                                placeholder="Enter API name"
+                              />
+                            </div>
+                          )}
+                          
                           <div className="space-y-2">
                             <Label htmlFor={`api-${api.id}`}>API Key</Label>
                             <div className="flex gap-2">
@@ -231,7 +189,7 @@ const Settings = () => {
                                 id={`api-${api.id}`}
                                 type={showKeys[api.id] ? "text" : "password"}
                                 value={api.key}
-                                onChange={(e) => updateApiKey(api.id, e.target.value)}
+                                onChange={(e) => updateApiKey(api.id, 'key', e.target.value)}
                                 placeholder="Enter your API key"
                                 className="flex-1"
                               />
@@ -244,6 +202,68 @@ const Settings = () => {
                               </Button>
                             </div>
                           </div>
+
+                          {/* Zoho Email specific fields */}
+                          {api.id === 'zoho-email' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label htmlFor={`email-host-${api.id}`}>SMTP Host</Label>
+                                <Input
+                                  id={`email-host-${api.id}`}
+                                  value={api.emailHost || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'emailHost', e.target.value)}
+                                  placeholder="smtp.zoho.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`email-username-${api.id}`}>Email Username</Label>
+                                <Input
+                                  id={`email-username-${api.id}`}
+                                  value={api.emailUsername || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'emailUsername', e.target.value)}
+                                  placeholder="your@domain.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`email-password-${api.id}`}>Email Password</Label>
+                                <Input
+                                  id={`email-password-${api.id}`}
+                                  type="password"
+                                  value={api.emailPassword || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'emailPassword', e.target.value)}
+                                  placeholder="Email password"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`imap-host-${api.id}`}>IMAP Host</Label>
+                                <Input
+                                  id={`imap-host-${api.id}`}
+                                  value={api.imapHost || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'imapHost', e.target.value)}
+                                  placeholder="imap.zoho.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`imap-username-${api.id}`}>IMAP Username</Label>
+                                <Input
+                                  id={`imap-username-${api.id}`}
+                                  value={api.imapUsername || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'imapUsername', e.target.value)}
+                                  placeholder="your@domain.com"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <Label htmlFor={`imap-password-${api.id}`}>IMAP Password</Label>
+                                <Input
+                                  id={`imap-password-${api.id}`}
+                                  type="password"
+                                  value={api.imapPassword || ""}
+                                  onChange={(e) => updateApiKey(api.id, 'imapPassword', e.target.value)}
+                                  placeholder="IMAP password"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
                       ))}
                       
@@ -319,50 +339,98 @@ const Settings = () => {
                   </Card>
                 </TabsContent>
 
-                {/* Geographic Scoring Tab */}
-                <TabsContent value="geographic" className="space-y-4">
+                {/* Target Countries Tab */}
+                <TabsContent value="countries" className="space-y-4">
                   <Card>
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
                         <Globe className="h-5 w-5" />
-                        Geographic Scoring Preferences
+                        Target Countries
                       </CardTitle>
                       <CardDescription>
-                        Set location-based scoring bonuses for different regions
+                        Select which countries to focus lead mining efforts on
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {Object.entries(geographicScoring).map(([key, value]) => (
-                          <div key={key} className="space-y-2">
-                            <Label htmlFor={`geo-${key}`} className="capitalize">
-                              {key === 'uk' ? 'United Kingdom' :
-                               key === 'westernEurope' ? 'Western Europe' :
-                               key.charAt(0).toUpperCase() + key.slice(1)}
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {targetCountries.availableCountries.map((country) => (
+                          <div key={country} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={country}
+                              checked={targetCountries.selectedCountries.includes(country)}
+                              onCheckedChange={() => toggleCountrySelection(country)}
+                            />
+                            <Label htmlFor={country} className="text-sm font-medium">
+                              {country}
                             </Label>
-                            <div className="flex items-center gap-4">
-                              <Input
-                                id={`geo-${key}`}
-                                type="number"
-                                min="0"
-                                max="50"
-                                value={value}
-                                onChange={(e) => setGeographicScoring(prev => ({
-                                  ...prev,
-                                  [key]: parseInt(e.target.value) || 0
-                                }))}
-                                className="w-20"
-                              />
-                              <span className="text-sm text-muted-foreground">bonus points</span>
-                              <div className="flex-1 bg-secondary rounded-full h-2">
-                                <div 
-                                  className="bg-primary rounded-full h-2 transition-all"
-                                  style={{ width: `${(value / 50) * 100}%` }}
-                                />
-                              </div>
-                            </div>
                           </div>
                         ))}
+                      </div>
+                      
+                      <div className="bg-muted p-4 rounded-lg">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-sm font-medium">Selected Countries</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {targetCountries.selectedCountries.map((country) => (
+                            <Badge key={country} variant="secondary">
+                              {country}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* Email Settings Tab */}
+                <TabsContent value="email" className="space-y-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Email Generation Settings
+                      </CardTitle>
+                      <CardDescription>
+                        Configure email templates and signature for outreach campaigns
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="email-prompt">ChatGPT Email Prompt</Label>
+                        <Textarea
+                          id="email-prompt"
+                          rows={6}
+                          value={emailSettings.emailPrompt}
+                          onChange={(e) => setEmailSettings(prev => ({
+                            ...prev,
+                            emailPrompt: e.target.value
+                          }))}
+                          placeholder="Enter the prompt for ChatGPT to generate emails..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Use placeholders: {"{contactName}"}, {"{companyName}"}, {"{companyData}"}, {"{contactData}"}
+                        </p>
+                      </div>
+                      
+                      <Separator />
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="email-signature">Email Signature</Label>
+                        <Textarea
+                          id="email-signature"
+                          rows={4}
+                          value={emailSettings.signature}
+                          onChange={(e) => setEmailSettings(prev => ({
+                            ...prev,
+                            signature: e.target.value
+                          }))}
+                          placeholder="Enter your email signature..."
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This signature will be automatically added to all generated emails
+                        </p>
                       </div>
                     </CardContent>
                   </Card>
@@ -435,39 +503,41 @@ const Settings = () => {
                             How often to run automated mining
                           </p>
                         </div>
-
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <Label>Signal Detection</Label>
-                              <p className="text-xs text-muted-foreground">
-                                Monitor company signals for opportunities
-                              </p>
-                            </div>
-                            <Switch
-                              checked={miningSettings.enableSignalDetection}
-                              onCheckedChange={(checked) => setMiningSettings(prev => ({
-                                ...prev,
-                                enableSignalDetection: checked
-                              }))}
-                            />
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="enableSignalDetection">Signal Detection</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Automatically detect company signals and news
+                            </p>
                           </div>
-
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <Label>Auto-Enrichment</Label>
-                              <p className="text-xs text-muted-foreground">
-                                Automatically enrich leads with additional data
-                              </p>
-                            </div>
-                            <Switch
-                              checked={miningSettings.enableAutoEnrichment}
-                              onCheckedChange={(checked) => setMiningSettings(prev => ({
-                                ...prev,
-                                enableAutoEnrichment: checked
-                              }))}
-                            />
+                          <Switch
+                            id="enableSignalDetection"
+                            checked={miningSettings.enableSignalDetection}
+                            onCheckedChange={(checked) => setMiningSettings(prev => ({
+                              ...prev,
+                              enableSignalDetection: checked
+                            }))}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="enableAutoEnrichment">Auto-Enrichment</Label>
+                            <p className="text-xs text-muted-foreground">
+                              Automatically enrich leads with additional data
+                            </p>
                           </div>
+                          <Switch
+                            id="enableAutoEnrichment"
+                            checked={miningSettings.enableAutoEnrichment}
+                            onCheckedChange={(checked) => setMiningSettings(prev => ({
+                              ...prev,
+                              enableAutoEnrichment: checked
+                            }))}
+                          />
                         </div>
                       </div>
                     </CardContent>
@@ -475,9 +545,8 @@ const Settings = () => {
                 </TabsContent>
               </Tabs>
 
-              {/* Save Button */}
               <div className="flex justify-end">
-                <Button onClick={saveSettings} className="flex items-center gap-2">
+                <Button onClick={handleSave} className="flex items-center gap-2">
                   <Save className="h-4 w-4" />
                   Save All Settings
                 </Button>

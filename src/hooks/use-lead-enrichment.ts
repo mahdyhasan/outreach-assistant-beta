@@ -23,7 +23,7 @@ interface ScoreLeadParams {
 
 export function useLeadEnrichment() {
   const queryClient = useQueryClient();
-  const { getApiKey, isApiActive, scoringWeights, geographicScoring } = useSettings();
+  const { getApiKey, isApiActive, scoringWeights, targetCountries } = useSettings();
   const { toast } = useToast();
 
   const enrichLeadMutation = useMutation({
@@ -79,7 +79,7 @@ export function useLeadEnrichment() {
           leadId,
           companyData,
           scoringWeights,
-          geographicScoring,
+          targetCountries,
           openaiApiKey,
         },
       });
