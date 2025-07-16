@@ -10,65 +10,65 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PendingReviewProps {
   pendingCount: number;
-  onLeadsProcessed: (approved: number) => void;
+  onCompaniesProcessed: (approved: number) => void;
 }
 
-interface Lead {
+interface Company {
   id: string;
   company_name: string;
-  contact_name: string;
-  email: string;
-  job_title: string;
-  company_size: string;
-  industry: string;
-  location: string;
   website: string;
+  industry: string;
+  employee_size: string;
+  founded: string;
+  description: string;
+  public_email: string;
+  public_phone: string;
+  linkedin_profile: string;
   ai_score: number;
-  final_score: number;
   status: string;
   source: string;
   enrichment_data: any;
 }
 
-export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewProps) => {
+export const PendingReview = ({ pendingCount, onCompaniesProcessed }: PendingReviewProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   
-  // Fetch pending leads from database
-  const { data: leads = [], isLoading } = useQuery({
-    queryKey: ['pending-leads'],
+  // Fetch pending companies from database
+  const { data: companies = [], isLoading } = useQuery({
+    queryKey: ['pending-companies'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('leads')
+        .from('companies')
         .select('*')
         .eq('status', 'pending_review')
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      return data as Lead[];
+      return data as Company[];
     },
   });
 
-  // Approve leads mutation
+  // Approve companies mutation
   const approveMutation = useMutation({
-    mutationFn: async (leadIds: string[]) => {
+    mutationFn: async (companyIds: string[]) => {
       const { error } = await supabase
-        .from('leads')
+        .from('companies')
         .update({ status: 'approved' })
-        .in('id', leadIds);
+        .in('id', companyIds);
       
       if (error) throw error;
-      return leadIds.length;
+      return companyIds.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['pending-leads'] });
-      onLeadsProcessed(count);
+      queryClient.invalidateQueries({ queryKey: ['pending-companies'] });
+      onCompaniesProcessed(count);
       toast({
-        title: "Leads Approved",
-        description: `${count} leads have been approved and are ready for outreach`,
+        title: "Companies Approved",
+        description: `${count} companies have been approved and are ready for enrichment`,
       });
-      setSelectedLeads([]);
+      setSelectedCompanies([]);
     },
     onError: (error: any) => {
       toast({
@@ -79,24 +79,24 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
     },
   });
 
-  // Reject leads mutation  
+  // Reject companies mutation  
   const rejectMutation = useMutation({
-    mutationFn: async (leadIds: string[]) => {
+    mutationFn: async (companyIds: string[]) => {
       const { error } = await supabase
-        .from('leads')
+        .from('companies')
         .update({ status: 'rejected' })
-        .in('id', leadIds);
+        .in('id', companyIds);
       
       if (error) throw error;
-      return leadIds.length;
+      return companyIds.length;
     },
     onSuccess: (count) => {
-      queryClient.invalidateQueries({ queryKey: ['pending-leads'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-companies'] });
       toast({
-        title: "Leads Rejected",
-        description: `${count} leads have been rejected`,
+        title: "Companies Rejected",
+        description: `${count} companies have been rejected`,
       });
-      setSelectedLeads([]);
+      setSelectedCompanies([]);
     },
     onError: (error: any) => {
       toast({
@@ -107,37 +107,37 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
     },
   });
 
-  const handleSelectLead = (leadId: string, checked: boolean) => {
+  const handleSelectCompany = (companyId: string, checked: boolean) => {
     if (checked) {
-      setSelectedLeads([...selectedLeads, leadId]);
+      setSelectedCompanies([...selectedCompanies, companyId]);
     } else {
-      setSelectedLeads(selectedLeads.filter(id => id !== leadId));
+      setSelectedCompanies(selectedCompanies.filter(id => id !== companyId));
     }
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedLeads(leads.map(lead => lead.id));
+      setSelectedCompanies(companies.map(company => company.id));
     } else {
-      setSelectedLeads([]);
+      setSelectedCompanies([]);
     }
   };
 
   const handleApprove = () => {
-    if (selectedLeads.length === 0) {
+    if (selectedCompanies.length === 0) {
       toast({
-        title: "No Leads Selected",
-        description: "Please select leads to approve",
+        title: "No Companies Selected",
+        description: "Please select companies to approve",
         variant: "destructive",
       });
       return;
     }
-    approveMutation.mutate(selectedLeads);
+    approveMutation.mutate(selectedCompanies);
   };
 
   const handleReject = () => {
-    if (selectedLeads.length === 0) return;
-    rejectMutation.mutate(selectedLeads);
+    if (selectedCompanies.length === 0) return;
+    rejectMutation.mutate(selectedCompanies);
   };
 
   const getScoreColor = (score: number) => {
@@ -151,18 +151,18 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
     return (
       <div className="text-center py-12">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Loading pending leads...</p>
+        <p className="text-muted-foreground">Loading pending companies...</p>
       </div>
     );
   }
 
-  if (leads.length === 0) {
+  if (companies.length === 0) {
     return (
       <div className="text-center py-12">
         <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
         <h3 className="text-lg font-semibold mb-2">No Pending Reviews</h3>
         <p className="text-muted-foreground">
-          All mined leads have been processed. New leads will appear here for review.
+          All mined companies have been processed. New companies will appear here for review.
         </p>
       </div>
     );
@@ -178,7 +178,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <Clock className="h-5 w-5 text-orange-500" />
               <div>
                 <div className="text-sm text-muted-foreground">Pending</div>
-                <div className="text-2xl font-bold">{leads.length}</div>
+                <div className="text-2xl font-bold">{companies.length}</div>
               </div>
             </div>
           </CardContent>
@@ -190,7 +190,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <Check className="h-5 w-5 text-green-500" />
               <div>
                 <div className="text-sm text-muted-foreground">Selected</div>
-                <div className="text-2xl font-bold">{selectedLeads.length}</div>
+                <div className="text-2xl font-bold">{selectedCompanies.length}</div>
               </div>
             </div>
           </CardContent>
@@ -203,7 +203,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <div>
                 <div className="text-sm text-muted-foreground">Avg Score</div>
                 <div className="text-2xl font-bold">
-                  {leads.length > 0 ? Math.round(leads.reduce((acc, lead) => acc + lead.ai_score, 0) / leads.length) : 0}%
+                  {companies.length > 0 ? Math.round(companies.reduce((acc, company) => acc + company.ai_score, 0) / companies.length) : 0}%
                 </div>
               </div>
             </div>
@@ -216,7 +216,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <Building className="h-5 w-5 text-purple-500" />
               <div>
                 <div className="text-sm text-muted-foreground">Industries</div>
-                <div className="text-2xl font-bold">{new Set(leads.map(l => l.industry)).size}</div>
+                <div className="text-2xl font-bold">{new Set(companies.map(c => c.industry)).size}</div>
               </div>
             </div>
           </CardContent>
@@ -228,11 +228,11 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
         <div className="flex items-center space-x-2">
           <Checkbox
             id="select-all"
-            checked={selectedLeads.length === leads.length}
+            checked={selectedCompanies.length === companies.length}
             onCheckedChange={handleSelectAll}
           />
           <label htmlFor="select-all" className="text-sm font-medium">
-            Select All ({leads.length})
+            Select All ({companies.length})
           </label>
         </div>
         
@@ -240,71 +240,71 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
           <Button
             variant="outline"
             onClick={handleReject}
-            disabled={selectedLeads.length === 0 || rejectMutation.isPending}
+            disabled={selectedCompanies.length === 0 || rejectMutation.isPending}
             className="flex items-center gap-2"
           >
             <X className="h-4 w-4" />
-            Reject ({selectedLeads.length})
+            Reject ({selectedCompanies.length})
           </Button>
           
           <Button
             onClick={handleApprove}
-            disabled={selectedLeads.length === 0 || approveMutation.isPending}
+            disabled={selectedCompanies.length === 0 || approveMutation.isPending}
             className="flex items-center gap-2"
           >
             <Check className="h-4 w-4" />
-            Approve ({selectedLeads.length})
+            Approve ({selectedCompanies.length})
           </Button>
         </div>
       </div>
 
-      {/* Leads List */}
+      {/* Companies List */}
       <div className="space-y-4">
-        {leads.map((lead) => (
-          <Card key={lead.id} className="hover:shadow-md transition-shadow">
+        {companies.map((company) => (
+          <Card key={company.id} className="hover:shadow-md transition-shadow">
             <CardContent className="pt-6">
               <div className="flex items-start gap-4">
                 <Checkbox
-                  checked={selectedLeads.includes(lead.id)}
-                  onCheckedChange={(checked) => handleSelectLead(lead.id, checked as boolean)}
+                  checked={selectedCompanies.includes(company.id)}
+                  onCheckedChange={(checked) => handleSelectCompany(company.id, checked as boolean)}
                 />
                 
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold">{lead.company_name}</h3>
-                      <p className="text-sm text-muted-foreground">{lead.contact_name} • {lead.job_title}</p>
-                      <p className="text-xs text-muted-foreground">{lead.email}</p>
+                      <h3 className="text-lg font-semibold">{company.company_name}</h3>
+                      <p className="text-sm text-muted-foreground">{company.description}</p>
+                      <p className="text-xs text-muted-foreground">{company.public_email || 'Email not available'}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={getScoreColor(lead.ai_score)}>
-                        {lead.ai_score}% Match
+                      <Badge className={getScoreColor(company.ai_score)}>
+                        {company.ai_score}% Match
                       </Badge>
-                      <Badge variant="outline">{lead.source}</Badge>
+                      <Badge variant="outline">{company.source}</Badge>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.industry} • {lead.company_size} employees</span>
+                      <span>{company.industry} • {company.employee_size} employees</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.location}</span>
+                      <span>Founded: {company.founded || 'Unknown'}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.website}</span>
+                      <span>{company.website}</span>
                     </div>
                   </div>
 
-                  {lead.enrichment_data && (
+                  {company.enrichment_data && (
                     <div className="text-sm text-muted-foreground">
                       <span className="font-medium">Enrichment Data:</span>{' '}
-                      {JSON.stringify(lead.enrichment_data).length > 100 
+                      {JSON.stringify(company.enrichment_data).length > 100 
                         ? 'Available' 
-                        : Object.keys(lead.enrichment_data).join(', ')
+                        : Object.keys(company.enrichment_data).join(', ')
                       }
                     </div>
                   )}

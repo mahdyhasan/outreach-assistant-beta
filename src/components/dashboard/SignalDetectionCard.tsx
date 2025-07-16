@@ -12,10 +12,7 @@ export function SignalDetectionCard() {
     queryFn: async () => {
       const { data } = await supabase
         .from("signals")
-        .select(`
-          *,
-          leads (final_score)
-        `)
+        .select("*")
         .order("detected_at", { ascending: false })
         .limit(4);
       
@@ -30,7 +27,7 @@ export function SignalDetectionCard() {
               signal.signal_type === 'job_posting' ? Briefcase :
               signal.signal_type === 'product_launch' ? Rocket :
               TrendingUp,
-        leadScore: signal.leads?.final_score || Math.floor(Math.random() * 100)
+        leadScore: Math.floor(Math.random() * 100) // Mock score for now
       })) || [];
     },
     refetchInterval: 30000,
@@ -143,7 +140,7 @@ export function SignalDetectionCard() {
                       Lead Score: {signal.leadScore}%
                     </Badge>
                     <Button size="sm" variant="outline" className="text-xs px-2 py-1">
-                      Add to Campaign
+                      Enrich Company
                     </Button>
                   </div>
                 </div>

@@ -37,13 +37,13 @@ export function DashboardContent() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Leads
+              Total Companies
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{stats?.totalLeads.toLocaleString()}</div>
+            <div className="text-2xl font-bold text-card-foreground">{stats?.totalCompanies.toLocaleString()}</div>
             <div className="text-xs text-muted-foreground">
-              {stats?.leadChanges.totalLeads}
+              {stats?.companyChanges.totalCompanies}
             </div>
           </CardContent>
         </Card>
@@ -51,13 +51,13 @@ export function DashboardContent() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              High-Quality Leads (70-100%)
+              High-Quality Companies (70-100%)
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{stats?.highQualityLeads}</div>
+            <div className="text-2xl font-bold text-card-foreground">{stats?.highQualityCompanies}</div>
             <div className="text-xs text-muted-foreground">
-              {stats?.leadChanges.highQualityLeads}
+              {stats?.companyChanges.highQualityCompanies}
             </div>
           </CardContent>
         </Card>
@@ -65,13 +65,13 @@ export function DashboardContent() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Campaigns
+              Active Signals
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-card-foreground">{stats?.activeCampaigns}</div>
+            <div className="text-2xl font-bold text-card-foreground">{stats?.activeSignals}</div>
             <div className="text-xs text-muted-foreground">
-              {stats?.leadChanges.activeCampaigns}
+              {stats?.companyChanges.activeSignals}
             </div>
           </CardContent>
         </Card>
@@ -85,7 +85,7 @@ export function DashboardContent() {
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats?.responseRate}</div>
             <div className="text-xs text-muted-foreground">
-              {stats?.leadChanges.responseRate}
+              {stats?.companyChanges.responseRate}
             </div>
           </CardContent>
         </Card>
@@ -111,9 +111,9 @@ export function DashboardContent() {
         <CardContent>
           <div className="space-y-4">
             {[
-              { action: "New high-quality lead scored", company: "TechCorp Inc", score: 87, time: "2 minutes ago" },
-              { action: "Email campaign sent", company: "InnovateLab", score: 75, time: "5 minutes ago" },
-              { action: "Follow-up email scheduled", company: "DataFlow Solutions", score: 82, time: "12 minutes ago" },
+              { action: "New high-quality company scored", company: "TechCorp Inc", score: 87, time: "2 minutes ago" },
+              { action: "Company enrichment completed", company: "InnovateLab", score: 75, time: "5 minutes ago" },
+              { action: "KDM discovery initiated", company: "DataFlow Solutions", score: 82, time: "12 minutes ago" },
               { action: "Signal detected: New funding", company: "StartupXYZ", score: 69, time: "1 hour ago" },
             ].map((activity, index) => (
               <div key={index} className="flex items-center justify-between p-4 border border-border rounded-lg">

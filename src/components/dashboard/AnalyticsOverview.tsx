@@ -27,22 +27,22 @@ export function AnalyticsOverview() {
         ? ((emailResponses / totalEmails) * 100).toFixed(1)
         : "0.0";
 
-      // Get conversion to meeting (simplified as high score leads for now)
-      const { count: totalLeads } = await supabase
-        .from("leads")
+      // Get conversion to meeting (simplified as high score companies for now)
+      const { count: totalCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true });
 
-      const { count: highScoreLeads } = await supabase
-        .from("leads")
+      const { count: highScoreCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .gte("final_score", 80);
+        .gte("ai_score", 80);
 
-      const conversionRate = totalLeads && highScoreLeads
-        ? ((highScoreLeads / totalLeads) * 100).toFixed(1)
+      const conversionRate = totalCompanies && highScoreCompanies
+        ? ((highScoreCompanies / totalCompanies) * 100).toFixed(1)
         : "0.0";
 
       // Calculate pipeline value (simplified)
-      const pipelineValue = (highScoreLeads || 0) * 2500; // $2500 average deal size
+      const pipelineValue = (highScoreCompanies || 0) * 2500; // $2500 average deal size
 
       return [
         {
@@ -78,56 +78,56 @@ export function AnalyticsOverview() {
     refetchInterval: 30000,
   });
 
-  const { data: leadDistribution } = useQuery({
-    queryKey: ["lead-distribution"],
+  const { data: companyDistribution } = useQuery({
+    queryKey: ["company-distribution"],
     queryFn: async () => {
-      const { count: totalLeads } = await supabase
-        .from("leads")
+      const { count: totalCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true });
 
-      const { count: hotLeads } = await supabase
-        .from("leads")
+      const { count: hotCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .gte("final_score", 70);
+        .gte("ai_score", 70);
 
-      const { count: queueLeads } = await supabase
-        .from("leads")
+      const { count: queueCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .gte("final_score", 40)
-        .lt("final_score", 70);
+        .gte("ai_score", 40)
+        .lt("ai_score", 70);
 
-      const { count: nurtureLeads } = await supabase
-        .from("leads")
+      const { count: nurtureCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .lt("final_score", 40);
+        .lt("ai_score", 40);
 
-      const { count: enterpriseLeads } = await supabase
-        .from("leads")
+      const { count: enterpriseCompanies } = await supabase
+        .from("companies")
         .select("*", { count: "exact", head: true })
-        .ilike("company_size", "%5000+%");
+        .ilike("employee_size", "%5000+%");
 
-      const total = totalLeads || 1; // Avoid division by zero
+      const total = totalCompanies || 1; // Avoid division by zero
 
       return [
         { 
-          category: "Hot Leads (70-100%)", 
-          count: hotLeads || 0, 
-          percentage: Math.round(((hotLeads || 0) / total) * 100) 
+          category: "Hot Companies (70-100%)", 
+          count: hotCompanies || 0, 
+          percentage: Math.round(((hotCompanies || 0) / total) * 100) 
         },
         { 
           category: "Queue (40-69%)", 
-          count: queueLeads || 0, 
-          percentage: Math.round(((queueLeads || 0) / total) * 100) 
+          count: queueCompanies || 0, 
+          percentage: Math.round(((queueCompanies || 0) / total) * 100) 
         },
         { 
           category: "Nurture (<40%)", 
-          count: nurtureLeads || 0, 
-          percentage: Math.round(((nurtureLeads || 0) / total) * 100) 
+          count: nurtureCompanies || 0, 
+          percentage: Math.round(((nurtureCompanies || 0) / total) * 100) 
         },
         { 
           category: "Enterprise (Too Large)", 
-          count: enterpriseLeads || 0, 
-          percentage: Math.round(((enterpriseLeads || 0) / total) * 100) 
+          count: enterpriseCompanies || 0, 
+          percentage: Math.round(((enterpriseCompanies || 0) / total) * 100) 
         },
       ];
     },
@@ -142,7 +142,7 @@ export function AnalyticsOverview() {
           Analytics Overview
         </CardTitle>
         <CardDescription>
-          Performance metrics and lead distribution insights
+          Performance metrics and company distribution insights
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -196,16 +196,16 @@ export function AnalyticsOverview() {
           </div>
         </div>
 
-        {/* Lead Distribution */}
+        {/* Company Distribution */}
         <div>
-          <h4 className="font-medium mb-3 text-card-foreground">Lead Distribution</h4>
+          <h4 className="font-medium mb-3 text-card-foreground">Company Distribution</h4>
           <div className="space-y-2">
-            {leadDistribution ? (
-              leadDistribution.map((category, index) => (
+            {companyDistribution ? (
+              companyDistribution.map((category, index) => (
                 <div key={index} className="flex items-center justify-between p-2 border border-border rounded">
                   <div>
                     <p className="text-sm text-card-foreground">{category.category}</p>
-                    <p className="text-xs text-muted-foreground">{category.count} leads</p>
+                    <p className="text-xs text-muted-foreground">{category.count} companies</p>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     {category.percentage}%

@@ -11,18 +11,18 @@ export function LeadScoringCard() {
     queryKey: ["recent-scores"],
     queryFn: async () => {
       const { data } = await supabase
-        .from("leads")
-        .select("company_name, company_size, final_score, status")
+        .from("companies")
+        .select("company_name, employee_size, ai_score, status")
         .order("created_at", { ascending: false })
         .limit(5);
       
-      return data?.map(lead => ({
-        company: lead.company_name,
-        size: lead.company_size,
-        score: lead.final_score,
-        category: lead.final_score >= 70 ? "hot" : 
-                 lead.final_score >= 40 ? "queue" : 
-                 lead.company_size.includes("5000+") ? "enterprise" : "nurture"
+      return data?.map(company => ({
+        company: company.company_name,
+        size: company.employee_size,
+        score: company.ai_score,
+        category: company.ai_score >= 70 ? "hot" : 
+                 company.ai_score >= 40 ? "queue" : 
+                 company.employee_size?.includes("5000+") ? "enterprise" : "nurture"
       })) || [];
     },
     refetchInterval: 30000,
@@ -40,7 +40,7 @@ export function LeadScoringCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <TrendingUp className="h-5 w-5" />
-          Lead Scoring Engine
+          Company Scoring Engine
         </CardTitle>
         <CardDescription>
           AI-powered scoring based on company size, tech stack, funding, and job postings
@@ -70,9 +70,9 @@ export function LeadScoringCard() {
           </div>
         </div>
 
-        {/* Recent Scored Leads */}
+        {/* Recent Scored Companies */}
         <div>
-          <h4 className="font-medium mb-3 text-card-foreground">Recently Scored Leads</h4>
+          <h4 className="font-medium mb-3 text-card-foreground">Recently Scored Companies</h4>
           <div className="space-y-2">
             {isLoading ? (
               [...Array(5)].map((_, i) => (
@@ -116,7 +116,7 @@ export function LeadScoringCard() {
         </div>
 
         <Button className="w-full" variant="outline">
-          View All Scored Leads
+          View All Scored Companies
         </Button>
       </CardContent>
     </Card>
