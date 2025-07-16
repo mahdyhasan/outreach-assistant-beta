@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Plus, FileText, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ManualImportProps {
   onLeadsAdded: (count: number) => void;
@@ -22,34 +23,97 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
 
     setIsProcessing(true);
     
-    // Simulate file processing
-    setTimeout(() => {
-      const mockLeadCount = Math.floor(Math.random() * 50) + 10;
-      onLeadsAdded(mockLeadCount);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      // Parse CSV data
+      const companies = lines.slice(1).map(line => {
+        const fields = line.split(',').map(field => field.trim().replace(/"/g, ''));
+        return {
+          company_name: fields[0] || '',
+          website: fields[1] || '',
+          industry: fields[2] || 'Unknown',
+          location: fields[3] || 'Unknown'
+        };
+      }).filter(company => company.company_name);
+
+      if (companies.length === 0) {
+        throw new Error('No valid companies found in file');
+      }
+
+      // Process companies through enrichment
+      for (const company of companies) {
+        await supabase.functions.invoke('lead-enrichment', {
+          body: { 
+            companyName: company.company_name,
+            website: company.website,
+            industry: company.industry,
+            location: company.location
+          }
+        });
+      }
+
+      onLeadsAdded(companies.length);
       toast({
         title: "File Processed",
-        description: `${mockLeadCount} companies extracted and queued for enrichment`,
+        description: `${companies.length} companies processed and queued for enrichment`,
       });
+    } catch (error: any) {
+      toast({
+        title: "Processing Failed",
+        description: error.message || 'Failed to process file',
+        variant: "destructive",
+      });
+    } finally {
       setIsProcessing(false);
-    }, 2000);
+    }
   };
 
-  const handleManualSubmit = () => {
+  const handleManualSubmit = async () => {
     if (!companyList.trim()) return;
 
     setIsProcessing(true);
-    const companies = companyList.split('\n').filter(line => line.trim());
+    const companies = companyList.split('\n')
+      .filter(line => line.trim())
+      .map(line => {
+        const isUrl = line.includes('http') || line.includes('www.');
+        return {
+          company_name: isUrl ? '' : line.trim(),
+          website: isUrl ? line.trim() : '',
+          industry: 'Unknown',
+          location: 'Unknown'
+        };
+      });
     
-    // Simulate processing
-    setTimeout(() => {
+    try {
+      // Process each company through enrichment
+      for (const company of companies) {
+        await supabase.functions.invoke('lead-enrichment', {
+          body: {
+            companyName: company.company_name,
+            website: company.website,
+            industry: company.industry,
+            location: company.location
+          }
+        });
+      }
+
       onLeadsAdded(companies.length);
       toast({
         title: "Companies Added",
         description: `${companies.length} companies queued for enrichment`,
       });
       setCompanyList('');
+    } catch (error: any) {
+      toast({
+        title: "Processing Failed",
+        description: error.message || 'Failed to process companies',
+        variant: "destructive",
+      });
+    } finally {
       setIsProcessing(false);
-    }, 1500);
+    }
   };
 
   const downloadTemplate = () => {
@@ -152,7 +216,7 @@ https://example.com`}
             <div className="flex items-center gap-3">
               <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600"></div>
               <span className="text-orange-800">
-                Processing companies and preparing for enrichment...
+                Processing companies and enriching lead data...
               </span>
             </div>
           </CardContent>

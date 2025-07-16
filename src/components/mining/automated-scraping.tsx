@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Bot, Play, Pause, Settings, Clock, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AutomatedScrapingProps {
   dailyScraped: number;
@@ -39,7 +40,7 @@ export const AutomatedScraping = ({
     });
   };
 
-  const handleManualRun = () => {
+  const handleManualRun = async () => {
     if (dailyScraped >= dailyLimit) {
       toast({
         title: "Daily Limit Reached",
@@ -51,16 +52,34 @@ export const AutomatedScraping = ({
 
     setIsRunning(true);
     
-    // Simulate scraping process
-    setTimeout(() => {
-      const newLeads = Math.floor(Math.random() * 20) + 5;
+    try {
+      // Call our lead scraping edge function with real API integration
+      const { data, error } = await supabase.functions.invoke('lead-scraping', {
+        body: {
+          industry: targetIndustry,
+          geography: geography,
+          limit: Math.min(50, dailyLimit - dailyScraped)
+        }
+      });
+
+      if (error) throw error;
+
+      const newLeads = data?.leads?.length || 0;
       onLeadsFound(newLeads);
+      
       toast({
         title: "Scraping Complete",
         description: `Found ${newLeads} new leads matching your criteria`,
       });
+    } catch (error: any) {
+      toast({
+        title: "Scraping Failed",
+        description: error.message || "Failed to scrape leads",
+        variant: "destructive",
+      });
+    } finally {
       setIsRunning(false);
-    }, 3000);
+    }
   };
 
   return (

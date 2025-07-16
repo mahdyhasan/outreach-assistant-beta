@@ -7,7 +7,8 @@ import {
   Users,
   Bell,
   Activity,
-  Download
+  Download,
+  Mail
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -25,12 +26,10 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: Activity },
   { title: "Lead Management", url: "/leads", icon: Database },
-  { title: "Lead Scoring", url: "/scoring", icon: Target },
-  { title: "Email Campaigns", url: "/campaigns", icon: MessageSquare },
-  { title: "Analytics", url: "/analytics", icon: TrendingUp },
-  { title: "Signal Detection", url: "/signals", icon: Bell },
-  { title: "CRM Export", url: "/export", icon: Download },
   { title: "Lead Mining", url: "/mining", icon: Users },
+  { title: "Email Queue", url: "/email-queue", icon: Mail },
+  { title: "Email Campaigns", url: "/email-campaigns", icon: MessageSquare },
+  { title: "Export Leads", url: "/export", icon: Download },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

@@ -1,78 +1,111 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Check, X, Clock, Building, Globe, Users, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 interface PendingReviewProps {
   pendingCount: number;
   onLeadsProcessed: (approved: number) => void;
 }
 
-// Mock pending leads data
-const mockPendingLeads = [
-  {
-    id: '1',
-    companyName: 'DevForce Solutions',
-    website: 'https://devforce.com',
-    industry: 'Software Development',
-    location: 'London, UK',
-    companySize: '25-50',
-    techStack: ['React', 'Node.js', 'AWS'],
-    recentFunding: 'Series A - $5M',
-    source: 'Automated Scraping',
-    matchScore: 92,
-    enrichmentData: {
-      jobPostings: 8,
-      recentNews: ['Launched new AI product', 'Hired 5 developers'],
-      fundingStage: 'Series A'
-    }
-  },
-  {
-    id: '2',
-    companyName: 'ScaleUp Tech',
-    website: 'https://scaleuptech.au',
-    industry: 'SaaS',
-    location: 'Sydney, Australia',
-    companySize: '100-200',
-    techStack: ['Python', 'Django', 'PostgreSQL'],
-    recentFunding: 'Series B - $15M',
-    source: 'Hybrid Mining',
-    matchScore: 88,
-    enrichmentData: {
-      jobPostings: 12,
-      recentNews: ['Expanded to Asian markets'],
-      fundingStage: 'Series B'
-    }
-  },
-  {
-    id: '3',
-    companyName: 'EcomGrowth',
-    website: 'https://ecomgrowth.com',
-    industry: 'E-commerce',
-    location: 'Manchester, UK',
-    companySize: '75-100',
-    techStack: ['Shopify', 'React', 'Node.js'],
-    recentFunding: 'Seed - $3M',
-    source: 'Manual Import',
-    matchScore: 85,
-    enrichmentData: {
-      jobPostings: 6,
-      recentNews: ['Q3 revenue up 200%'],
-      fundingStage: 'Seed'
-    }
-  }
-];
+interface Lead {
+  id: string;
+  company_name: string;
+  contact_name: string;
+  email: string;
+  job_title: string;
+  company_size: string;
+  industry: string;
+  location: string;
+  website: string;
+  ai_score: number;
+  final_score: number;
+  status: string;
+  source: string;
+  enrichment_data: any;
+}
 
 export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState('all');
   
-  const leads = mockPendingLeads.slice(0, Math.min(pendingCount, 10));
+  // Fetch pending leads from database
+  const { data: leads = [], isLoading } = useQuery({
+    queryKey: ['pending-leads'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('status', 'pending_review')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Lead[];
+    },
+  });
+
+  // Approve leads mutation
+  const approveMutation = useMutation({
+    mutationFn: async (leadIds: string[]) => {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: 'approved' })
+        .in('id', leadIds);
+      
+      if (error) throw error;
+      return leadIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['pending-leads'] });
+      onLeadsProcessed(count);
+      toast({
+        title: "Leads Approved",
+        description: `${count} leads have been approved and are ready for outreach`,
+      });
+      setSelectedLeads([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Approval Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Reject leads mutation  
+  const rejectMutation = useMutation({
+    mutationFn: async (leadIds: string[]) => {
+      const { error } = await supabase
+        .from('leads')
+        .update({ status: 'rejected' })
+        .in('id', leadIds);
+      
+      if (error) throw error;
+      return leadIds.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['pending-leads'] });
+      toast({
+        title: "Leads Rejected",
+        description: `${count} leads have been rejected`,
+      });
+      setSelectedLeads([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Rejection Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleSelectLead = (leadId: string, checked: boolean) => {
     if (checked) {
@@ -99,23 +132,12 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
       });
       return;
     }
-
-    onLeadsProcessed(selectedLeads.length);
-    toast({
-      title: "Leads Approved",
-      description: `${selectedLeads.length} leads have been added to your database and are ready for outreach`,
-    });
-    setSelectedLeads([]);
+    approveMutation.mutate(selectedLeads);
   };
 
   const handleReject = () => {
     if (selectedLeads.length === 0) return;
-
-    toast({
-      title: "Leads Rejected",
-      description: `${selectedLeads.length} leads have been rejected and removed from the queue`,
-    });
-    setSelectedLeads([]);
+    rejectMutation.mutate(selectedLeads);
   };
 
   const getScoreColor = (score: number) => {
@@ -125,7 +147,16 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
     return 'text-red-600 bg-red-100';
   };
 
-  if (pendingCount === 0) {
+  if (isLoading) {
+    return (
+      <div className="text-center py-12">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Loading pending leads...</p>
+      </div>
+    );
+  }
+
+  if (leads.length === 0) {
     return (
       <div className="text-center py-12">
         <Clock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -147,7 +178,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <Clock className="h-5 w-5 text-orange-500" />
               <div>
                 <div className="text-sm text-muted-foreground">Pending</div>
-                <div className="text-2xl font-bold">{pendingCount}</div>
+                <div className="text-2xl font-bold">{leads.length}</div>
               </div>
             </div>
           </CardContent>
@@ -172,7 +203,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
               <div>
                 <div className="text-sm text-muted-foreground">Avg Score</div>
                 <div className="text-2xl font-bold">
-                  {Math.round(leads.reduce((acc, lead) => acc + lead.matchScore, 0) / leads.length)}%
+                  {leads.length > 0 ? Math.round(leads.reduce((acc, lead) => acc + lead.ai_score, 0) / leads.length) : 0}%
                 </div>
               </div>
             </div>
@@ -184,8 +215,8 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
             <div className="flex items-center gap-3">
               <Building className="h-5 w-5 text-purple-500" />
               <div>
-                <div className="text-sm text-muted-foreground">Sources</div>
-                <div className="text-2xl font-bold">3</div>
+                <div className="text-sm text-muted-foreground">Industries</div>
+                <div className="text-2xl font-bold">{new Set(leads.map(l => l.industry)).size}</div>
               </div>
             </div>
           </CardContent>
@@ -209,7 +240,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
           <Button
             variant="outline"
             onClick={handleReject}
-            disabled={selectedLeads.length === 0}
+            disabled={selectedLeads.length === 0 || rejectMutation.isPending}
             className="flex items-center gap-2"
           >
             <X className="h-4 w-4" />
@@ -218,7 +249,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
           
           <Button
             onClick={handleApprove}
-            disabled={selectedLeads.length === 0}
+            disabled={selectedLeads.length === 0 || approveMutation.isPending}
             className="flex items-center gap-2"
           >
             <Check className="h-4 w-4" />
@@ -241,12 +272,13 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
                 <div className="flex-1 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold">{lead.companyName}</h3>
-                      <p className="text-sm text-muted-foreground">{lead.website}</p>
+                      <h3 className="text-lg font-semibold">{lead.company_name}</h3>
+                      <p className="text-sm text-muted-foreground">{lead.contact_name} • {lead.job_title}</p>
+                      <p className="text-xs text-muted-foreground">{lead.email}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge className={getScoreColor(lead.matchScore)}>
-                        {lead.matchScore}% Match
+                      <Badge className={getScoreColor(lead.ai_score)}>
+                        {lead.ai_score}% Match
                       </Badge>
                       <Badge variant="outline">{lead.source}</Badge>
                     </div>
@@ -255,7 +287,7 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                     <div className="flex items-center gap-2">
                       <Building className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.industry} • {lead.companySize} employees</span>
+                      <span>{lead.industry} • {lead.company_size} employees</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Globe className="h-4 w-4 text-muted-foreground" />
@@ -263,22 +295,19 @@ export const PendingReview = ({ pendingCount, onLeadsProcessed }: PendingReviewP
                     </div>
                     <div className="flex items-center gap-2">
                       <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <span>{lead.recentFunding}</span>
+                      <span>{lead.website}</span>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {lead.techStack.map((tech, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
-                        {tech}
-                      </Badge>
-                    ))}
-                  </div>
-
-                  <div className="text-sm text-muted-foreground">
-                    <span className="font-medium">Recent Activity:</span>{' '}
-                    {lead.enrichmentData.jobPostings} job postings, {lead.enrichmentData.recentNews.join(', ')}
-                  </div>
+                  {lead.enrichment_data && (
+                    <div className="text-sm text-muted-foreground">
+                      <span className="font-medium">Enrichment Data:</span>{' '}
+                      {JSON.stringify(lead.enrichment_data).length > 100 
+                        ? 'Available' 
+                        : Object.keys(lead.enrichment_data).join(', ')
+                      }
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>
