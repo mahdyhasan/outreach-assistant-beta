@@ -30,13 +30,18 @@ interface EmailQueueItem {
   lead_id: string;
   subject: string;
   content: string;
-  status: 'pending_review' | 'approved' | 'sent' | 'rejected';
+  status: 'pending' | 'approved' | 'sent' | 'failed';
   recipient_email: string;
-  recipient_name: string;
-  company_name: string;
-  generated_at: string;
-  reviewed_at?: string;
+  created_at: string;
+  updated_at: string;
   sent_at?: string;
+  approved_by?: string;
+  approved_at?: string;
+  error_message?: string;
+  leads?: {
+    contact_name: string;
+    company_name: string;
+  };
 }
 
 const EmailQueue = () => {
@@ -46,14 +51,20 @@ const EmailQueue = () => {
   const [editedSubject, setEditedSubject] = useState("");
   const [editedContent, setEditedContent] = useState("");
 
-  // Fetch email queue
+  // Fetch email queue with leads data
   const { data: emailQueue = [], isLoading } = useQuery({
     queryKey: ['email-queue'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('email_queue')
-        .select('*')
-        .order('generated_at', { ascending: false });
+        .select(`
+          *,
+          leads (
+            contact_name,
+            company_name
+          )
+        `)
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       return data as EmailQueueItem[];
@@ -139,7 +150,7 @@ const EmailQueue = () => {
       id,
       updates: {
         status: 'approved',
-        reviewed_at: new Date().toISOString(),
+        approved_at: new Date().toISOString(),
       }
     });
   };
@@ -148,36 +159,36 @@ const EmailQueue = () => {
     updateEmailMutation.mutate({
       id,
       updates: {
-        status: 'rejected',
-        reviewed_at: new Date().toISOString(),
+        status: 'failed',
+        error_message: 'Rejected by user',
       }
     });
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending_review': return 'warning';
+      case 'pending': return 'warning';
       case 'approved': return 'success';
       case 'sent': return 'default';
-      case 'rejected': return 'destructive';
+      case 'failed': return 'destructive';
       default: return 'secondary';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending_review': return <Clock className="h-4 w-4" />;
+      case 'pending': return <Clock className="h-4 w-4" />;
       case 'approved': return <Check className="h-4 w-4" />;
       case 'sent': return <Send className="h-4 w-4" />;
-      case 'rejected': return <X className="h-4 w-4" />;
+      case 'failed': return <X className="h-4 w-4" />;
       default: return <AlertCircle className="h-4 w-4" />;
     }
   };
 
-  const pendingEmails = emailQueue.filter(email => email.status === 'pending_review');
+  const pendingEmails = emailQueue.filter(email => email.status === 'pending');
   const approvedEmails = emailQueue.filter(email => email.status === 'approved');
   const sentEmails = emailQueue.filter(email => email.status === 'sent');
-  const rejectedEmails = emailQueue.filter(email => email.status === 'rejected');
+  const rejectedEmails = emailQueue.filter(email => email.status === 'failed');
 
   return (
     <SidebarProvider>
@@ -220,10 +231,10 @@ const EmailQueue = () => {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
-                            <CardTitle className="flex items-center gap-2">
-                              <Mail className="h-5 w-5" />
-                              {email.company_name} - {email.recipient_name}
-                            </CardTitle>
+                             <CardTitle className="flex items-center gap-2">
+                               <Mail className="h-5 w-5" />
+                               {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
+                             </CardTitle>
                             <CardDescription>{email.recipient_email}</CardDescription>
                           </div>
                           <Badge variant={getStatusColor(email.status) as any} className="flex items-center gap-1">
@@ -256,9 +267,9 @@ const EmailQueue = () => {
                             <DialogContent className="max-w-2xl">
                               <DialogHeader>
                                 <DialogTitle>Email Preview</DialogTitle>
-                                <DialogDescription>
-                                  To: {email.recipient_email} ({email.recipient_name})
-                                </DialogDescription>
+                                 <DialogDescription>
+                                   To: {email.recipient_email} ({email.leads?.contact_name || 'Unknown Contact'})
+                                 </DialogDescription>
                               </DialogHeader>
                               <div className="space-y-4">
                                 <div>
@@ -332,10 +343,10 @@ const EmailQueue = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                              <CardTitle className="flex items-center gap-2">
-                                <Mail className="h-5 w-5" />
-                                {email.company_name} - {email.recipient_name}
-                              </CardTitle>
+                               <CardTitle className="flex items-center gap-2">
+                                 <Mail className="h-5 w-5" />
+                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
+                               </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="default" className="flex items-center gap-1">
@@ -345,9 +356,9 @@ const EmailQueue = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-sm text-muted-foreground">
-                            Ready to send • Approved on {new Date(email.reviewed_at!).toLocaleDateString()}
-                          </p>
+                           <p className="text-sm text-muted-foreground">
+                             Ready to send • Approved on {email.approved_at ? new Date(email.approved_at).toLocaleDateString() : 'Unknown'}
+                           </p>
                         </CardContent>
                       </Card>
                     ))}
@@ -361,10 +372,10 @@ const EmailQueue = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                              <CardTitle className="flex items-center gap-2">
-                                <Mail className="h-5 w-5" />
-                                {email.company_name} - {email.recipient_name}
-                              </CardTitle>
+                               <CardTitle className="flex items-center gap-2">
+                                 <Mail className="h-5 w-5" />
+                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
+                               </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="default" className="flex items-center gap-1">
@@ -390,10 +401,10 @@ const EmailQueue = () => {
                         <CardHeader>
                           <div className="flex items-center justify-between">
                             <div>
-                              <CardTitle className="flex items-center gap-2">
-                                <Mail className="h-5 w-5" />
-                                {email.company_name} - {email.recipient_name}
-                              </CardTitle>
+                               <CardTitle className="flex items-center gap-2">
+                                 <Mail className="h-5 w-5" />
+                                 {email.leads?.company_name || 'Unknown Company'} - {email.leads?.contact_name || 'Unknown Contact'}
+                               </CardTitle>
                               <CardDescription>{email.recipient_email}</CardDescription>
                             </div>
                             <Badge variant="destructive" className="flex items-center gap-1">
@@ -403,9 +414,9 @@ const EmailQueue = () => {
                           </div>
                         </CardHeader>
                         <CardContent>
-                          <p className="text-sm text-muted-foreground">
-                            Rejected on {new Date(email.reviewed_at!).toLocaleDateString()}
-                          </p>
+                           <p className="text-sm text-muted-foreground">
+                             Failed - {email.error_message || 'No error message'}
+                           </p>
                         </CardContent>
                       </Card>
                     ))}
