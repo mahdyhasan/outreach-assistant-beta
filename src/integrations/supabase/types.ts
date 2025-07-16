@@ -71,106 +71,64 @@ export type Database = {
         }
         Relationships: []
       }
-      contacts: {
+      decision_makers: {
         Row: {
           company_id: string
+          confidence_score: number | null
           contact_type: string | null
           created_at: string
           designation: string
           email: string | null
           facebook_profile: string | null
+          first_name: string
           id: string
           instagram_profile: string | null
+          last_name: string
           linkedin_profile: string | null
-          name: string
           phone: string | null
           updated_at: string
         }
         Insert: {
           company_id: string
+          confidence_score?: number | null
           contact_type?: string | null
           created_at?: string
           designation: string
           email?: string | null
           facebook_profile?: string | null
+          first_name: string
           id?: string
           instagram_profile?: string | null
+          last_name: string
           linkedin_profile?: string | null
-          name: string
           phone?: string | null
           updated_at?: string
         }
         Update: {
           company_id?: string
+          confidence_score?: number | null
           contact_type?: string | null
           created_at?: string
           designation?: string
           email?: string | null
           facebook_profile?: string | null
+          first_name?: string
           id?: string
           instagram_profile?: string | null
+          last_name?: string
           linkedin_profile?: string | null
-          name?: string
           phone?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "contacts_company_id_fkey"
+            foreignKeyName: "decision_makers_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
-      }
-      crm_sync_history: {
-        Row: {
-          completed_at: string | null
-          created_at: string
-          created_by: string | null
-          crm_system: string
-          error_count: number
-          error_details: Json | null
-          id: string
-          leads_count: number
-          started_at: string
-          status: string
-          success_count: number
-          sync_filters: Json | null
-          sync_type: string
-        }
-        Insert: {
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          crm_system?: string
-          error_count?: number
-          error_details?: Json | null
-          id?: string
-          leads_count?: number
-          started_at?: string
-          status?: string
-          success_count?: number
-          sync_filters?: Json | null
-          sync_type: string
-        }
-        Update: {
-          completed_at?: string | null
-          created_at?: string
-          created_by?: string | null
-          crm_system?: string
-          error_count?: number
-          error_details?: Json | null
-          id?: string
-          leads_count?: number
-          started_at?: string
-          status?: string
-          success_count?: number
-          sync_filters?: Json | null
-          sync_type?: string
-        }
-        Relationships: []
       }
       mining_settings: {
         Row: {
@@ -199,51 +157,14 @@ export type Database = {
         }
         Relationships: []
       }
-      outreach_activities: {
-        Row: {
-          id: string
-          lead_id: string | null
-          message: string
-          response_at: string | null
-          response_content: string | null
-          sent_at: string | null
-          status: string
-          subject: string | null
-          type: string
-        }
-        Insert: {
-          id?: string
-          lead_id?: string | null
-          message: string
-          response_at?: string | null
-          response_content?: string | null
-          sent_at?: string | null
-          status: string
-          subject?: string | null
-          type: string
-        }
-        Update: {
-          id?: string
-          lead_id?: string | null
-          message?: string
-          response_at?: string | null
-          response_content?: string | null
-          sent_at?: string | null
-          status?: string
-          subject?: string | null
-          type?: string
-        }
-        Relationships: []
-      }
       signals: {
         Row: {
-          company_name: string
+          company_id: string
           created_at: string
           detected_at: string
           id: string
-          lead_id: string | null
-          priority: string
-          processed: boolean
+          priority: string | null
+          processed: boolean | null
           signal_description: string | null
           signal_title: string
           signal_type: string
@@ -251,13 +172,12 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          company_name: string
+          company_id: string
           created_at?: string
           detected_at?: string
           id?: string
-          lead_id?: string | null
-          priority?: string
-          processed?: boolean
+          priority?: string | null
+          processed?: boolean | null
           signal_description?: string | null
           signal_title: string
           signal_type: string
@@ -265,20 +185,27 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          company_name?: string
+          company_id?: string
           created_at?: string
           detected_at?: string
           id?: string
-          lead_id?: string | null
-          priority?: string
-          processed?: boolean
+          priority?: string | null
+          processed?: boolean | null
           signal_description?: string | null
           signal_title?: string
           signal_type?: string
           signal_url?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "signals_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
