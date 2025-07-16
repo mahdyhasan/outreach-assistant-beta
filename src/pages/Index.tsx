@@ -46,10 +46,20 @@ const Index = () => {
                 AI-powered lead scoring with human feedback learning
               </p>
             </div>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              Add Lead
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => window.location.href = '/mining'}
+              >
+                <Plus className="h-4 w-4" />
+                Mine Leads
+              </Button>
+              <Button className="flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Add Lead
+              </Button>
+            </div>
           </div>
         </div>
       </div>
