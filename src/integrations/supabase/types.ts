@@ -124,6 +124,48 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_mining_stats: {
+        Row: {
+          avg_quality_score: number | null
+          companies_approved: number | null
+          companies_rejected: number | null
+          companies_scraped: number | null
+          created_at: string | null
+          date: string
+          decision_makers_found: number | null
+          id: string
+          sources_used: string[] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          avg_quality_score?: number | null
+          companies_approved?: number | null
+          companies_rejected?: number | null
+          companies_scraped?: number | null
+          created_at?: string | null
+          date: string
+          decision_makers_found?: number | null
+          id?: string
+          sources_used?: string[] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          avg_quality_score?: number | null
+          companies_approved?: number | null
+          companies_rejected?: number | null
+          companies_scraped?: number | null
+          created_at?: string | null
+          date?: string
+          decision_makers_found?: number | null
+          id?: string
+          sources_used?: string[] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       decision_makers: {
         Row: {
           company_id: string
@@ -622,6 +664,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mining_settings: {
+        Row: {
+          auto_approve_high_score: boolean | null
+          created_at: string | null
+          daily_limit: number | null
+          daily_report_enabled: boolean | null
+          deduplication_strength: string | null
+          enable_weekends: boolean | null
+          enrichment_depth: string | null
+          error_alerts_enabled: boolean | null
+          high_score_threshold: number | null
+          id: string
+          quality_threshold: number | null
+          quota_warnings_enabled: boolean | null
+          start_time: string | null
+          time_zone: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          auto_approve_high_score?: boolean | null
+          created_at?: string | null
+          daily_limit?: number | null
+          daily_report_enabled?: boolean | null
+          deduplication_strength?: string | null
+          enable_weekends?: boolean | null
+          enrichment_depth?: string | null
+          error_alerts_enabled?: boolean | null
+          high_score_threshold?: number | null
+          id?: string
+          quality_threshold?: number | null
+          quota_warnings_enabled?: boolean | null
+          start_time?: string | null
+          time_zone?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          auto_approve_high_score?: boolean | null
+          created_at?: string | null
+          daily_limit?: number | null
+          daily_report_enabled?: boolean | null
+          deduplication_strength?: string | null
+          enable_weekends?: boolean | null
+          enrichment_depth?: string | null
+          error_alerts_enabled?: boolean | null
+          high_score_threshold?: number | null
+          id?: string
+          quality_threshold?: number | null
+          quota_warnings_enabled?: boolean | null
+          start_time?: string | null
+          time_zone?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

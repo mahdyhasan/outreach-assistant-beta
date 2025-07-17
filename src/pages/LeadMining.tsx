@@ -11,11 +11,35 @@ import { PendingReview } from '@/components/mining/pending-review';
 import { MiningSettings } from '@/components/mining/mining-settings';
 import { Upload, Bot, GitMerge, Settings, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useMiningSettings } from '@/hooks/use-mining-settings';
+import { Loader2 } from 'lucide-react';
 
 const LeadMining = () => {
-  const [pendingCompanies, setPendingCompanies] = useState(23);
-  const [dailyScrapedToday, setDailyScrapedToday] = useState(42);
-  const [dailyLimit, setDailyLimit] = useState(100);
+  const { settings, dailyStats, loading, updateSettings, updateDailyStats } = useMiningSettings();
+
+  
+  if (loading) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <div className="flex-1 flex flex-col">
+            <DashboardHeader />
+            <main className="flex-1 p-6 flex items-center justify-center">
+              <div className="text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+                <p className="text-muted-foreground">Loading mining settings...</p>
+              </div>
+            </main>
+          </div>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  const dailyScrapedToday = dailyStats?.companies_scraped || 0;
+  const dailyLimit = settings?.daily_limit || 100;
+  const pendingCount = 0; // Will be calculated from actual pending companies
 
   return (
     <SidebarProvider>
@@ -44,11 +68,6 @@ const LeadMining = () => {
                         {dailyScrapedToday} / {dailyLimit} leads
                       </div>
                     </div>
-                    {pendingCompanies > 0 && (
-                      <Badge variant="destructive" className="animate-pulse">
-                        {pendingCompanies} pending review
-                      </Badge>
-                    )}
                   </div>
                 </div>
               </div>
@@ -72,11 +91,6 @@ const LeadMining = () => {
             <TabsTrigger value="review" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               Review Queue
-              {pendingCompanies > 0 && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {pendingCompanies}
-                </Badge>
-              )}
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -93,7 +107,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ManualImport onLeadsAdded={(count) => setPendingCompanies(prev => prev + count)} />
+                <ManualImport onLeadsAdded={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -110,7 +124,7 @@ const LeadMining = () => {
             <AutomatedScraping 
               dailyScraped={dailyScrapedToday}
               dailyLimit={dailyLimit}
-              onLeadsFound={(count) => setPendingCompanies(prev => prev + count)}
+              onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })}
             />
               </CardContent>
             </Card>
@@ -125,7 +139,7 @@ const LeadMining = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <HybridMining onLeadsFound={(count) => setPendingCompanies(prev => prev + count)} />
+                <HybridMining onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -140,8 +154,8 @@ const LeadMining = () => {
               </CardHeader>
               <CardContent>
                 <PendingReview 
-                  pendingCount={pendingCompanies}
-                  onLeadsProcessed={(approved) => setPendingCompanies(0)}
+                  pendingCount={pendingCount}
+                  onLeadsProcessed={(approved) => updateDailyStats({ companies_approved: (dailyStats?.companies_approved || 0) + approved })}
                 />
               </CardContent>
             </Card>
@@ -157,8 +171,8 @@ const LeadMining = () => {
               </CardHeader>
               <CardContent>
                 <MiningSettings 
-                  dailyLimit={dailyLimit}
-                  onDailyLimitChange={setDailyLimit}
+                  settings={settings}
+                  onSettingsUpdate={updateSettings}
                 />
               </CardContent>
             </Card>

@@ -5,13 +5,15 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Upload, Plus, FileText, Download } from 'lucide-react';
-import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface ManualImportProps {
   onLeadsAdded: (count: number) => void;
 }
 
 export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
+  const { toast } = useToast();
   const [companyList, setCompanyList] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -40,13 +42,36 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
         throw new Error('No valid companies found in file');
       }
 
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Save companies to database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const companiesData = companies.map(company => ({
+        ...company,
+        user_id: user.id,
+        source: 'manual',
+        status: 'pending_review',
+        ai_score: 0,
+        enrichment_data: {},
+      }));
+
+      const { error } = await supabase
+        .from('companies')
+        .insert(companiesData);
+
+      if (error) throw error;
 
       onLeadsAdded(companies.length);
-      toast.success(`${companies.length} companies processed and queued for enrichment`);
+      toast({
+        title: "Success",
+        description: `${companies.length} companies processed and queued for enrichment`,
+      });
     } catch (error: any) {
-      toast.error(error.message || 'Failed to process file');
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to process file',
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }
@@ -69,14 +94,37 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
       });
     
     try {
-      // Simulate processing
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Save companies to database
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const companiesData = companies.map(company => ({
+        ...company,
+        user_id: user.id,
+        source: 'manual',
+        status: 'pending_review',
+        ai_score: 0,
+        enrichment_data: {},
+      }));
+
+      const { error } = await supabase
+        .from('companies')
+        .insert(companiesData);
+
+      if (error) throw error;
 
       onLeadsAdded(companies.length);
-      toast.success(`${companies.length} companies queued for enrichment`);
+      toast({
+        title: "Success",
+        description: `${companies.length} companies queued for enrichment`,
+      });
       setCompanyList('');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to process companies');
+      toast({
+        title: "Error",
+        description: error.message || 'Failed to process companies',
+        variant: "destructive",
+      });
     } finally {
       setIsProcessing(false);
     }

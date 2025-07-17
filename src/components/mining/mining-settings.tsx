@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,48 +9,56 @@ import { Slider } from '@/components/ui/slider';
 import { Badge } from '@/components/ui/badge';
 import { Settings, Save, AlertTriangle, Target } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { MiningSettings as MiningSettingsType } from '@/hooks/use-mining-settings';
 
 interface MiningSettingsProps {
-  dailyLimit: number;
-  onDailyLimitChange: (limit: number) => void;
+  settings: MiningSettingsType | null;
+  onSettingsUpdate: (settings: Partial<MiningSettingsType>) => Promise<void>;
 }
 
-export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSettingsProps) => {
+export const MiningSettings = ({ settings, onSettingsUpdate }: MiningSettingsProps) => {
   const { toast } = useToast();
-  const [settings, setSettings] = useState({
-    dailyLimit: dailyLimit,
-    timeZone: 'UTC',
-    startTime: '09:00',
-    enableWeekends: false,
-    deduplicationStrength: 'high',
-    enrichmentDepth: 'standard',
-    qualityThreshold: [70],
-    autoApproveHighScore: false,
-    highScoreThreshold: 90,
-    notifications: {
-      dailyReport: true,
-      errorAlerts: true,
-      quotaWarnings: true
-    }
+  const [localSettings, setLocalSettings] = useState({
+    daily_limit: 100,
+    time_zone: 'UTC',
+    start_time: '09:00',
+    enable_weekends: false,
+    deduplication_strength: 'high',
+    enrichment_depth: 'standard',
+    quality_threshold: 70,
+    auto_approve_high_score: false,
+    high_score_threshold: 90,
+    daily_report_enabled: true,
+    error_alerts_enabled: true,
+    quota_warnings_enabled: true,
   });
 
-  const handleSave = () => {
-    onDailyLimitChange(settings.dailyLimit);
-    toast({
-      title: "Settings Saved",
-      description: "Your mining settings have been updated successfully",
-    });
+  // Update local settings when props change
+  useEffect(() => {
+    if (settings) {
+      setLocalSettings({
+        daily_limit: settings.daily_limit,
+        time_zone: settings.time_zone,
+        start_time: settings.start_time,
+        enable_weekends: settings.enable_weekends,
+        deduplication_strength: settings.deduplication_strength,
+        enrichment_depth: settings.enrichment_depth,
+        quality_threshold: settings.quality_threshold,
+        auto_approve_high_score: settings.auto_approve_high_score,
+        high_score_threshold: settings.high_score_threshold,
+        daily_report_enabled: settings.daily_report_enabled,
+        error_alerts_enabled: settings.error_alerts_enabled,
+        quota_warnings_enabled: settings.quota_warnings_enabled,
+      });
+    }
+  }, [settings]);
+
+  const handleSave = async () => {
+    await onSettingsUpdate(localSettings);
   };
 
   const updateSetting = (key: string, value: any) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  const updateNotification = (key: string, value: boolean) => {
-    setSettings(prev => ({
-      ...prev,
-      notifications: { ...prev.notifications, [key]: value }
-    }));
+    setLocalSettings(prev => ({ ...prev, [key]: value }));
   };
 
   return (
@@ -70,8 +78,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
               <Input
                 id="daily-limit"
                 type="number"
-                value={settings.dailyLimit}
-                onChange={(e) => updateSetting('dailyLimit', parseInt(e.target.value) || 0)}
+                value={localSettings.daily_limit}
+                onChange={(e) => updateSetting('daily_limit', parseInt(e.target.value) || 0)}
                 min="0"
                 max="1000"
               />
@@ -85,8 +93,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
               <Input
                 id="start-time"
                 type="time"
-                value={settings.startTime}
-                onChange={(e) => updateSetting('startTime', e.target.value)}
+                value={localSettings.start_time}
+                onChange={(e) => updateSetting('start_time', e.target.value)}
               />
               <p className="text-sm text-muted-foreground">
                 When to start daily scraping
@@ -96,7 +104,7 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
 
           <div className="space-y-2">
             <Label htmlFor="timezone">Time Zone</Label>
-            <Select value={settings.timeZone} onValueChange={(value) => updateSetting('timeZone', value)}>
+          <Select value={localSettings.time_zone} onValueChange={(value) => updateSetting('time_zone', value)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -119,8 +127,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
             </div>
             <Switch
               id="weekends"
-              checked={settings.enableWeekends}
-              onCheckedChange={(checked) => updateSetting('enableWeekends', checked)}
+              checked={localSettings.enable_weekends}
+              onCheckedChange={(checked) => updateSetting('enable_weekends', checked)}
             />
           </div>
         </CardContent>
@@ -133,10 +141,10 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label>Minimum Quality Score: {settings.qualityThreshold[0]}%</Label>
+            <Label>Minimum Quality Score: {localSettings.quality_threshold}%</Label>
             <Slider
-              value={settings.qualityThreshold}
-              onValueChange={(value) => updateSetting('qualityThreshold', value)}
+              value={[localSettings.quality_threshold]}
+              onValueChange={(value) => updateSetting('quality_threshold', value[0])}
               max={100}
               min={0}
               step={5}
@@ -150,8 +158,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
           <div className="space-y-2">
             <Label htmlFor="dedup">Deduplication Strength</Label>
             <Select 
-              value={settings.deduplicationStrength} 
-              onValueChange={(value) => updateSetting('deduplicationStrength', value)}
+              value={localSettings.deduplication_strength} 
+              onValueChange={(value) => updateSetting('deduplication_strength', value)}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -168,8 +176,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
           <div className="space-y-2">
             <Label htmlFor="enrichment">Enrichment Depth</Label>
             <Select 
-              value={settings.enrichmentDepth} 
-              onValueChange={(value) => updateSetting('enrichmentDepth', value)}
+              value={localSettings.enrichment_depth} 
+              onValueChange={(value) => updateSetting('enrichment_depth', value)}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -200,19 +208,19 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
             </div>
             <Switch
               id="auto-approve"
-              checked={settings.autoApproveHighScore}
-              onCheckedChange={(checked) => updateSetting('autoApproveHighScore', checked)}
+              checked={localSettings.auto_approve_high_score}
+              onCheckedChange={(checked) => updateSetting('auto_approve_high_score', checked)}
             />
           </div>
 
-          {settings.autoApproveHighScore && (
+          {localSettings.auto_approve_high_score && (
             <div className="space-y-2">
               <Label htmlFor="auto-threshold">Auto-approval Threshold</Label>
               <Input
                 id="auto-threshold"
                 type="number"
-                value={settings.highScoreThreshold}
-                onChange={(e) => updateSetting('highScoreThreshold', parseInt(e.target.value) || 90)}
+                value={localSettings.high_score_threshold}
+                onChange={(e) => updateSetting('high_score_threshold', parseInt(e.target.value) || 90)}
                 min="70"
                 max="100"
               />
@@ -222,7 +230,7 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
             </div>
           )}
 
-          {settings.autoApproveHighScore && (
+          {localSettings.auto_approve_high_score && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-yellow-600" />
@@ -247,8 +255,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
               <p className="text-sm text-muted-foreground">Get daily mining summaries</p>
             </div>
             <Switch
-              checked={settings.notifications.dailyReport}
-              onCheckedChange={(checked) => updateNotification('dailyReport', checked)}
+              checked={localSettings.daily_report_enabled}
+              onCheckedChange={(checked) => updateSetting('daily_report_enabled', checked)}
             />
           </div>
 
@@ -258,8 +266,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
               <p className="text-sm text-muted-foreground">Notify when scraping fails</p>
             </div>
             <Switch
-              checked={settings.notifications.errorAlerts}
-              onCheckedChange={(checked) => updateNotification('errorAlerts', checked)}
+              checked={localSettings.error_alerts_enabled}
+              onCheckedChange={(checked) => updateSetting('error_alerts_enabled', checked)}
             />
           </div>
 
@@ -269,8 +277,8 @@ export const MiningSettings = ({ dailyLimit, onDailyLimitChange }: MiningSetting
               <p className="text-sm text-muted-foreground">Alert when approaching daily limit</p>
             </div>
             <Switch
-              checked={settings.notifications.quotaWarnings}
-              onCheckedChange={(checked) => updateNotification('quotaWarnings', checked)}
+              checked={localSettings.quota_warnings_enabled}
+              onCheckedChange={(checked) => updateSetting('quota_warnings_enabled', checked)}
             />
           </div>
         </CardContent>
