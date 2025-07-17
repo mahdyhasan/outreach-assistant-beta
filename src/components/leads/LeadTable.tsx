@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,9 +30,11 @@ interface LeadTableProps {
   leads: CompanyLead[];
   onAction: (type: 'details' | 'edit' | 'enrich' | 'score', lead: CompanyLead) => void;
   onRefresh?: () => void;
+  selectedLeads: CompanyLead[];
+  onSelectionChange: (leads: CompanyLead[]) => void;
 }
 
-export function LeadTable({ leads, onAction, onRefresh }: LeadTableProps) {
+export function LeadTable({ leads, onAction, onRefresh, selectedLeads, onSelectionChange }: LeadTableProps) {
   const { enrichCompany, loading: enrichmentLoading } = useCompanyEnrichment();
   const { scoreCompany, loading: scoringLoading } = useLeadScoring();
   const [processingLeads, setProcessingLeads] = useState(new Set<string>());
@@ -161,11 +164,39 @@ export function LeadTable({ leads, onAction, onRefresh }: LeadTableProps) {
     return 'text-red-600 dark:text-red-400';
   };
 
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      onSelectionChange(leads);
+    } else {
+      onSelectionChange([]);
+    }
+  };
+
+  const handleSelectLead = (lead: CompanyLead, checked: boolean) => {
+    if (checked) {
+      onSelectionChange([...selectedLeads, lead]);
+    } else {
+      onSelectionChange(selectedLeads.filter(l => l.id !== lead.id));
+    }
+  };
+
+  const isSelected = (lead: CompanyLead) => selectedLeads.some(l => l.id === lead.id);
+  const isAllSelected = leads.length > 0 && selectedLeads.length === leads.length;
+  const isPartiallySelected = selectedLeads.length > 0 && selectedLeads.length < leads.length;
+
   return (
     <div className="rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-12">
+              <Checkbox
+                checked={isAllSelected}
+                onCheckedChange={handleSelectAll}
+                aria-label="Select all"
+                {...(isPartiallySelected && { "data-state": "indeterminate" })}
+              />
+            </TableHead>
             <TableHead>Company</TableHead>
             <TableHead>Industry</TableHead>
             <TableHead>Size</TableHead>
@@ -181,6 +212,13 @@ export function LeadTable({ leads, onAction, onRefresh }: LeadTableProps) {
         <TableBody>
           {leads.map((lead) => (
             <TableRow key={lead.id}>
+              <TableCell>
+                <Checkbox
+                  checked={isSelected(lead)}
+                  onCheckedChange={(checked) => handleSelectLead(lead, checked as boolean)}
+                  aria-label={`Select ${lead.company_name}`}
+                />
+              </TableCell>
               <TableCell className="font-medium">
                 <div>
                   <div className="font-semibold">{lead.company_name}</div>

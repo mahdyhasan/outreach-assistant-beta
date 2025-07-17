@@ -6,7 +6,8 @@ import { EditLeadDialog } from "./EditLeadDialog";
 import { EnrichCompanyDialog } from "./EnrichCompanyDialog";
 import { ScoreAdjustmentDialog } from "./ScoreAdjustmentDialog";
 import { AddLeadDialog } from "./AddLeadDialog";
-import { useSupabaseLeads } from "@/hooks/use-supabase-leads";
+import { BulkActionsBar } from "./BulkActionsBar";
+import { useSupabaseLeads, CompanyLead } from "@/hooks/use-supabase-leads";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, Plus } from "lucide-react";
@@ -14,6 +15,7 @@ import { Loader2, Plus } from "lucide-react";
 export function LeadManagementContent() {
   const { leads, loading, refetch } = useSupabaseLeads();
   const [selectedLead, setSelectedLead] = useState<any>(null);
+  const [selectedLeads, setSelectedLeads] = useState<CompanyLead[]>([]);
   const [dialogType, setDialogType] = useState<'details' | 'edit' | 'enrich' | 'score' | 'add' | null>(null);
   const [filters, setFilters] = useState({
     search: '',
@@ -52,6 +54,14 @@ export function LeadManagementContent() {
     setDialogType(null);
   };
 
+  const handleSelectionChange = (leads: CompanyLead[]) => {
+    setSelectedLeads(leads);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedLeads([]);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -85,13 +95,25 @@ export function LeadManagementContent() {
         </CardContent>
       </Card>
 
+      <BulkActionsBar 
+        selectedLeads={selectedLeads}
+        onClearSelection={handleClearSelection}
+        onRefresh={refetch}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>Leads ({filteredLeads.length})</CardTitle>
           <CardDescription>All your mined leads from various sources</CardDescription>
         </CardHeader>
         <CardContent>
-          <LeadTable leads={filteredLeads} onAction={openDialog} onRefresh={refetch} />
+          <LeadTable 
+            leads={filteredLeads} 
+            onAction={openDialog} 
+            onRefresh={refetch}
+            selectedLeads={selectedLeads}
+            onSelectionChange={handleSelectionChange}
+          />
         </CardContent>
       </Card>
 
