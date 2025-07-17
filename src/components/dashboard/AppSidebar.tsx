@@ -8,7 +8,8 @@ import {
   Bell,
   Activity,
   Download,
-  Mail
+  Mail,
+  BarChart3
 } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -30,6 +31,7 @@ const items = [
   { title: "Email Queue", url: "/email-queue", icon: Mail },
   { title: "Email Campaigns", url: "/email-campaigns", icon: MessageSquare },
   { title: "Export Leads", url: "/export", icon: Download },
+  { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

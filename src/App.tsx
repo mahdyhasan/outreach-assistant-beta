@@ -10,6 +10,7 @@ import LeadMining from "./pages/LeadMining";
 import EmailCampaigns from "./pages/EmailCampaigns";
 import EmailQueue from "./pages/EmailQueue";
 import ExportLeads from "./pages/ExportLeads";
+import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
@@ -30,6 +31,7 @@ function App() {
           <Route path="/email-campaigns" element={<AuthGuard><EmailCampaigns /></AuthGuard>} />
           <Route path="/email-queue" element={<AuthGuard><EmailQueue /></AuthGuard>} />
           <Route path="/export" element={<AuthGuard><ExportLeads /></AuthGuard>} />
+          <Route path="/analytics" element={<AuthGuard><Analytics /></AuthGuard>} />
           <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
