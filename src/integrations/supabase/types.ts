@@ -73,6 +73,7 @@ export type Database = {
           source: string | null
           status: string | null
           updated_at: string
+          user_id: string | null
           website: string | null
         }
         Insert: {
@@ -95,6 +96,7 @@ export type Database = {
           source?: string | null
           status?: string | null
           updated_at?: string
+          user_id?: string | null
           website?: string | null
         }
         Update: {
@@ -117,6 +119,7 @@ export type Database = {
           source?: string | null
           status?: string | null
           updated_at?: string
+          user_id?: string | null
           website?: string | null
         }
         Relationships: []
@@ -619,6 +622,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          company_name: string | null
+          created_at: string
+          full_name: string | null
+          id: string
+          job_title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          job_title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          company_name?: string | null
+          created_at?: string
+          full_name?: string | null
+          id?: string
+          job_title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       signals: {
         Row: {

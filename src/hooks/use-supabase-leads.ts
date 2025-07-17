@@ -63,7 +63,7 @@ export function useSupabaseLeads() {
     try {
       setLoading(true);
       
-      // Fetch companies with their decision makers and signals
+      // Fetch companies with their decision makers and signals (user-filtered)
       const { data: companies, error } = await supabase
         .from('companies')
         .select(`

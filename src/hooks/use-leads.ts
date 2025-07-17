@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Lead, LeadFilters } from '@/types/lead';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/use-auth';
 
 export const useLeads = () => {
+  const { user } = useAuth();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<LeadFilters>({});
 
   useEffect(() => {
-    fetchLeads();
-  }, []);
+    if (user) {
+      fetchLeads();
+    }
+  }, [user]);
 
   const fetchLeads = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       const { data: companies, error } = await supabase

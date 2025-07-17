@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { useToast } from "@/hooks/use-toast";
 
 interface APIKey {
   id: string;
@@ -44,10 +46,9 @@ interface MiningSettings {
   frequency: string;
 }
 
-// Default user ID (since no auth system yet)
-const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
-
 export function useSettings() {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [scoringWeights, setScoringWeights] = useState<ScoringWeights>({
     companySize: 30,
@@ -84,16 +85,20 @@ Always use the contact's first name in greeting.`,
 
   // Load settings from database on mount
   useEffect(() => {
-    loadSettings();
-  }, []);
+    if (user) {
+      loadSettings();
+    }
+  }, [user]);
 
   const loadSettings = async () => {
+    if (!user) return;
+    
     try {
       setLoading(true);
       const { data: userSettings, error } = await supabase
         .from('user_settings')
         .select('*')
-        .eq('user_id', DEFAULT_USER_ID)
+        .eq('user_id', user.id)
         .single();
 
       if (error && error.code !== 'PGRST116') {
@@ -153,6 +158,15 @@ Always use the contact's first name in greeting.`,
   };
 
   const saveSettings = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to save settings",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     try {
       // Convert API keys array to object format for JSONB
       const apiKeysObject = apiKeys.reduce((acc, key) => {
@@ -163,7 +177,7 @@ Always use the contact's first name in greeting.`,
       const { error } = await supabase
         .from('user_settings')
         .upsert([{
-          user_id: DEFAULT_USER_ID,
+          user_id: user.id,
           api_keys: apiKeysObject as any,
           email_signature: emailSettings.signature,
           email_prompt: emailSettings.emailPrompt,
@@ -178,8 +192,17 @@ Always use the contact's first name in greeting.`,
         }]);
 
       if (error) {
-        console.error('Error saving settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to save settings",
+          variant: "destructive",
+        });
         throw error;
+      } else {
+        toast({
+          title: "Success",
+          description: "Settings saved successfully",
+        });
       }
     } catch (error) {
       console.error('Error saving settings:', error);

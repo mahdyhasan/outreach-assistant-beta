@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,7 +18,6 @@ import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState as useStateReact } from "react";
 
 interface ExportCompany {
   id: string;
@@ -35,6 +35,7 @@ interface ExportCompany {
 }
 
 const ExportLeads = () => {
+  const { user } = useAuth();
   const [selectedCompanies, setSelectedCompanies] = useState<string[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterIndustry, setFilterIndustry] = useState<string>('all');
@@ -44,10 +45,14 @@ const ExportLeads = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchExportData();
-  }, []);
+    if (user) {
+      fetchExportData();
+    }
+  }, [user]);
 
   const fetchExportData = async () => {
+    if (!user) return;
+
     try {
       setLoading(true);
       const { data: companies, error } = await supabase
