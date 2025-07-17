@@ -26,9 +26,9 @@ export const AutomatedScraping = ({
   const { searchCompanies, loading } = useApolloSearch();
   const [searchParams, setSearchParams] = useState<CompanySearchFilters>({
     query: '',
-    location: '',
-    industry: '',
-    size: '',
+    location: 'all',
+    industry: 'all',
+    size: 'all',
     limit: 20,
   });
   const [lastSearchResults, setLastSearchResults] = useState<{
@@ -44,7 +44,15 @@ export const AutomatedScraping = ({
   const handleSearch = async () => {
     if (!searchParams.query.trim()) return;
     
-    const results = await searchCompanies(searchParams);
+    // Convert "all" values back to empty strings for the API
+    const apiParams = {
+      ...searchParams,
+      location: searchParams.location === 'all' ? '' : searchParams.location,
+      industry: searchParams.industry === 'all' ? '' : searchParams.industry,
+      size: searchParams.size === 'all' ? '' : searchParams.size,
+    };
+    
+    const results = await searchCompanies(apiParams);
     
     if (results.success) {
       setLastSearchResults({
@@ -116,7 +124,7 @@ export const AutomatedScraping = ({
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any Location</SelectItem>
+                  <SelectItem value="all">Any Location</SelectItem>
                   <SelectItem value="United States">United States</SelectItem>
                   <SelectItem value="United Kingdom">United Kingdom</SelectItem>
                   <SelectItem value="Canada">Canada</SelectItem>
@@ -135,7 +143,7 @@ export const AutomatedScraping = ({
                   <SelectValue placeholder="Select industry" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any Industry</SelectItem>
+                  <SelectItem value="all">Any Industry</SelectItem>
                   <SelectItem value="Technology">Technology</SelectItem>
                   <SelectItem value="SaaS">SaaS</SelectItem>
                   <SelectItem value="E-commerce">E-commerce</SelectItem>
@@ -154,7 +162,7 @@ export const AutomatedScraping = ({
                   <SelectValue placeholder="Select size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Any Size</SelectItem>
+                  <SelectItem value="all">Any Size</SelectItem>
                   <SelectItem value="1-10">1-10 employees</SelectItem>
                   <SelectItem value="11-50">11-50 employees</SelectItem>
                   <SelectItem value="51-200">51-200 employees</SelectItem>
