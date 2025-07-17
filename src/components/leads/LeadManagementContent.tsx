@@ -5,14 +5,16 @@ import { LeadDetailsDialog } from "./LeadDetailsDialog";
 import { EditLeadDialog } from "./EditLeadDialog";
 import { EnrichCompanyDialog } from "./EnrichCompanyDialog";
 import { ScoreAdjustmentDialog } from "./ScoreAdjustmentDialog";
+import { AddLeadDialog } from "./AddLeadDialog";
 import { useSupabaseLeads } from "@/hooks/use-supabase-leads";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Plus } from "lucide-react";
 
 export function LeadManagementContent() {
   const { leads, loading, refetch } = useSupabaseLeads();
   const [selectedLead, setSelectedLead] = useState<any>(null);
-  const [dialogType, setDialogType] = useState<'details' | 'edit' | 'enrich' | 'score' | null>(null);
+  const [dialogType, setDialogType] = useState<'details' | 'edit' | 'enrich' | 'score' | 'add' | null>(null);
   const [filters, setFilters] = useState({
     search: '',
     status: [],
@@ -41,6 +43,10 @@ export function LeadManagementContent() {
     setDialogType(type);
   };
 
+  const openAddDialog = () => {
+    setDialogType('add');
+  };
+
   const closeDialog = () => {
     setSelectedLead(null);
     setDialogType(null);
@@ -56,11 +62,17 @@ export function LeadManagementContent() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Lead Management</h1>
-        <p className="text-muted-foreground">
-          Manage all your mined leads - view, edit, enrich, and score your prospects
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Lead Management</h1>
+          <p className="text-muted-foreground">
+            Manage all your mined leads - view, edit, enrich, and score your prospects
+          </p>
+        </div>
+        <Button onClick={openAddDialog} className="flex items-center gap-2">
+          <Plus className="h-4 w-4" />
+          Add Lead
+        </Button>
       </div>
 
       <Card>
@@ -114,6 +126,15 @@ export function LeadManagementContent() {
         open={dialogType === 'score'} 
         onOpenChange={closeDialog}
         lead={selectedLead}
+        onSuccess={() => {
+          refetch();
+          closeDialog();
+        }}
+      />
+
+      <AddLeadDialog 
+        open={dialogType === 'add'} 
+        onOpenChange={closeDialog}
         onSuccess={() => {
           refetch();
           closeDialog();

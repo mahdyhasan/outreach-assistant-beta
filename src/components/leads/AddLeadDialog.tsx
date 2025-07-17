@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -18,19 +18,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CompanyLead } from "@/hooks/use-supabase-leads";
 import { useSupabaseLeads } from "@/hooks/use-supabase-leads";
-import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { Loader2, Plus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-interface EditLeadDialogProps {
+interface AddLeadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  lead: CompanyLead | null;
   onSuccess: () => void;
 }
 
-export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLeadDialogProps) {
-  const { updateCompany } = useSupabaseLeads();
+export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogProps) {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     company_name: '',
@@ -42,37 +42,55 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
     public_email: '',
     public_phone: '',
     linkedin_profile: '',
-    status: 'pending_review',
   });
-
-  // Update form data when lead changes
-  useEffect(() => {
-    if (lead) {
-      setFormData({
-        company_name: lead.company_name || '',
-        website: lead.website || '',
-        industry: lead.industry || '',
-        employee_size: lead.employee_size || '',
-        founded: lead.founded || '',
-        description: lead.description || '',
-        public_email: lead.public_email || '',
-        public_phone: lead.public_phone || '',
-        linkedin_profile: lead.linkedin_profile || '',
-        status: lead.status || 'pending_review',
-      });
-    }
-  }, [lead]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lead) return;
-
     setLoading(true);
+
     try {
-      await updateCompany(lead.id, formData);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      const { error } = await supabase
+        .from('companies')
+        .insert({
+          ...formData,
+          user_id: user.id,
+          source: 'manual',
+          status: 'pending_review',
+          ai_score: 0,
+          enrichment_data: {},
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Lead added successfully",
+      });
+
       onSuccess();
-    } catch (error) {
-      console.error('Error updating lead:', error);
+      
+      // Reset form
+      setFormData({
+        company_name: '',
+        website: '',
+        industry: '',
+        employee_size: '',
+        founded: '',
+        description: '',
+        public_email: '',
+        public_phone: '',
+        linkedin_profile: '',
+      });
+    } catch (error: any) {
+      console.error('Error adding lead:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add lead",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -82,15 +100,16 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  if (!lead) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Edit Lead</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Add New Lead
+          </DialogTitle>
           <DialogDescription>
-            Update the company information and details
+            Manually add a new company lead to your pipeline
           </DialogDescription>
         </DialogHeader>
 
@@ -113,6 +132,7 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
                 type="url"
                 value={formData.website}
                 onChange={(e) => updateFormData('website', e.target.value)}
+                placeholder="https://example.com"
               />
             </div>
 
@@ -153,21 +173,6 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={formData.status} onValueChange={(value) => updateFormData('status', value)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending_review">Pending Review</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="rejected">Rejected</SelectItem>
-                  <SelectItem value="enriched">Enriched</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="public_email">Public Email</Label>
               <Input
                 id="public_email"
@@ -185,15 +190,16 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
                 onChange={(e) => updateFormData('public_phone', e.target.value)}
               />
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="linkedin_profile">LinkedIn Profile</Label>
-            <Input
-              id="linkedin_profile"
-              value={formData.linkedin_profile}
-              onChange={(e) => updateFormData('linkedin_profile', e.target.value)}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="linkedin_profile">LinkedIn Profile</Label>
+              <Input
+                id="linkedin_profile"
+                value={formData.linkedin_profile}
+                onChange={(e) => updateFormData('linkedin_profile', e.target.value)}
+                placeholder="https://linkedin.com/company/example"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -203,6 +209,7 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
               value={formData.description}
               onChange={(e) => updateFormData('description', e.target.value)}
               rows={3}
+              placeholder="Brief description of the company..."
             />
           </div>
 
@@ -212,7 +219,7 @@ export function EditLeadDialog({ open, onOpenChange, lead, onSuccess }: EditLead
             </Button>
             <Button type="submit" disabled={loading}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
+              Add Lead
             </Button>
           </DialogFooter>
         </form>

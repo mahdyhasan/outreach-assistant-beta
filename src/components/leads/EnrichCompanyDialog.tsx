@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CompanyLead } from "@/hooks/use-supabase-leads";
 import { useSupabaseLeads } from "@/hooks/use-supabase-leads";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Zap, TrendingUp, Users, Newspaper, Building } from "lucide-react";
 
 interface EnrichCompanyDialogProps {
@@ -60,7 +61,18 @@ export function EnrichCompanyDialog({ open, onOpenChange, lead, onSuccess }: Enr
 
     setLoading(enrichmentType);
     try {
-      await enrichCompany(lead.id, enrichmentType);
+      // Call the actual enrichment edge function
+      const { data, error } = await supabase.functions.invoke('company-enrichment', {
+        body: {
+          company_id: lead.id,
+          enrichment_type: enrichmentType,
+        },
+      });
+
+      if (error) {
+        throw error;
+      }
+
       onSuccess();
     } catch (error) {
       console.error('Error enriching company:', error);

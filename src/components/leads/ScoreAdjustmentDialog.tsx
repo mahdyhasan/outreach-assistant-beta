@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +25,15 @@ interface ScoreAdjustmentDialogProps {
 export function ScoreAdjustmentDialog({ open, onOpenChange, lead, onSuccess }: ScoreAdjustmentDialogProps) {
   const { updateCompany } = useSupabaseLeads();
   const [loading, setLoading] = useState(false);
-  const [newScore, setNewScore] = useState(lead?.ai_score || 0);
+  const [newScore, setNewScore] = useState(0);
   const [reason, setReason] = useState('');
+
+  // Update score when lead changes
+  useEffect(() => {
+    if (lead) {
+      setNewScore(lead.ai_score || 0);
+    }
+  }, [lead]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
