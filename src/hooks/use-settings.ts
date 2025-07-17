@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface APIKey {
   id: string;
@@ -32,15 +33,19 @@ interface TargetCountries {
 interface EmailSettings {
   signature: string;
   emailPrompt: string;
+  dailySendLimit: number;
+  trackingDuration: number;
+  replyMonitoring: boolean;
 }
 
 interface MiningSettings {
   dailyLimit: number;
   autoApprovalThreshold: number;
-  frequencyHours: number;
-  enableSignalDetection: boolean;
-  enableAutoEnrichment: boolean;
+  frequency: string;
 }
+
+// Default user ID (since no auth system yet)
+const DEFAULT_USER_ID = '00000000-0000-0000-0000-000000000001';
 
 export function useSettings() {
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
@@ -65,89 +70,77 @@ export function useSettings() {
 Use the following company data: {companyData}
 Use the following contact data: {contactData}
 Keep it concise, personalized, and focused on value proposition.
-Always use the contact's first name in greeting.`
+Always use the contact's first name in greeting.`,
+    dailySendLimit: 500,
+    trackingDuration: 30,
+    replyMonitoring: true
   });
   const [miningSettings, setMiningSettings] = useState<MiningSettings>({
     dailyLimit: 100,
     autoApprovalThreshold: 70,
-    frequencyHours: 24,
-    enableSignalDetection: true,
-    enableAutoEnrichment: true
+    frequency: 'daily'
   });
+  const [loading, setLoading] = useState(true);
 
-  // Load settings from localStorage on mount
+  // Load settings from database on mount
   useEffect(() => {
-    const savedApiKeys = localStorage.getItem('apiKeys');
-    const savedScoringWeights = localStorage.getItem('scoringWeights');
-    const savedTargetCountries = localStorage.getItem('targetCountries');
-    const savedEmailSettings = localStorage.getItem('emailSettings');
-    const savedMiningSettings = localStorage.getItem('miningSettings');
-
-    if (savedApiKeys) {
-      setApiKeys(JSON.parse(savedApiKeys));
-    } else {
-      // Default API keys
-      setApiKeys([
-        {
-          id: "apollo",
-          name: "Apollo.io API",
-          key: "",
-          description: "For lead enrichment and company data",
-          isActive: true
-        },
-        {
-          id: "openai",
-          name: "OpenAI API",
-          key: "",
-          description: "For AI-powered lead scoring and analysis",
-          isActive: true
-        },
-        {
-          id: "perplexity",
-          name: "Perplexity API",
-          key: "",
-          description: "For real-time company intelligence and signals",
-          isActive: false
-        },
-        {
-          id: "google-search",
-          name: "Google Search API",
-          key: "",
-          description: "For lead discovery and company research",
-          isActive: false
-        },
-        {
-          id: "zoho-email",
-          name: "Zoho Email",
-          key: "",
-          description: "For email sending and management",
-          isActive: false,
-          emailHost: "",
-          emailUsername: "",
-          emailPassword: "",
-          imapHost: "",
-          imapUsername: "",
-          imapPassword: ""
-        }
-      ]);
-    }
-
-    if (savedScoringWeights) {
-      setScoringWeights(JSON.parse(savedScoringWeights));
-    }
-
-    if (savedTargetCountries) {
-      setTargetCountries(JSON.parse(savedTargetCountries));
-    }
-
-    if (savedEmailSettings) {
-      setEmailSettings(JSON.parse(savedEmailSettings));
-    }
-
-    if (savedMiningSettings) {
-      setMiningSettings(JSON.parse(savedMiningSettings));
-    }
+    loadSettings();
   }, []);
+
+  const loadSettings = async () => {
+    try {
+      setLoading(true);
+      const { data: userSettings, error } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', DEFAULT_USER_ID)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error loading settings:', error);
+        return;
+      }
+
+      if (userSettings) {
+        // Parse API keys from JSONB
+        if (userSettings.api_keys) {
+          const apiKeysData = userSettings.api_keys as Record<string, any>;
+          const apiKeysArray = Object.values(apiKeysData) as APIKey[];
+          setApiKeys(apiKeysArray);
+        }
+
+        // Parse scoring weights
+        if (userSettings.scoring_weights) {
+          setScoringWeights(userSettings.scoring_weights as unknown as ScoringWeights);
+        }
+
+        // Parse target countries
+        if (userSettings.target_countries) {
+          setTargetCountries(userSettings.target_countries as unknown as TargetCountries);
+        }
+
+        // Set email settings
+        setEmailSettings({
+          signature: userSettings.email_signature || emailSettings.signature,
+          emailPrompt: userSettings.email_prompt || emailSettings.emailPrompt,
+          dailySendLimit: userSettings.daily_send_limit || 500,
+          trackingDuration: userSettings.tracking_duration || 30,
+          replyMonitoring: userSettings.reply_monitoring ?? true
+        });
+
+        // Set mining settings
+        setMiningSettings({
+          dailyLimit: userSettings.daily_limit || 100,
+          autoApprovalThreshold: userSettings.auto_approval_threshold || 70,
+          frequency: userSettings.frequency || 'daily'
+        });
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getApiKey = (keyId: string): string => {
     const apiKey = apiKeys.find(key => key.id === keyId && key.isActive);
@@ -159,12 +152,39 @@ Always use the contact's first name in greeting.`
     return apiKey?.isActive && !!apiKey.key || false;
   };
 
-  const saveSettings = () => {
-    localStorage.setItem('apiKeys', JSON.stringify(apiKeys));
-    localStorage.setItem('scoringWeights', JSON.stringify(scoringWeights));
-    localStorage.setItem('targetCountries', JSON.stringify(targetCountries));
-    localStorage.setItem('emailSettings', JSON.stringify(emailSettings));
-    localStorage.setItem('miningSettings', JSON.stringify(miningSettings));
+  const saveSettings = async () => {
+    try {
+      // Convert API keys array to object format for JSONB
+      const apiKeysObject = apiKeys.reduce((acc, key) => {
+        acc[key.id] = key;
+        return acc;
+      }, {} as Record<string, APIKey>);
+
+      const { error } = await supabase
+        .from('user_settings')
+        .upsert([{
+          user_id: DEFAULT_USER_ID,
+          api_keys: apiKeysObject as any,
+          email_signature: emailSettings.signature,
+          email_prompt: emailSettings.emailPrompt,
+          daily_send_limit: emailSettings.dailySendLimit,
+          tracking_duration: emailSettings.trackingDuration,
+          reply_monitoring: emailSettings.replyMonitoring,
+          daily_limit: miningSettings.dailyLimit,
+          auto_approval_threshold: miningSettings.autoApprovalThreshold,
+          frequency: miningSettings.frequency,
+          scoring_weights: scoringWeights as any,
+          target_countries: targetCountries as any,
+        }]);
+
+      if (error) {
+        console.error('Error saving settings:', error);
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      throw error;
+    }
   };
 
   return {
@@ -174,6 +194,7 @@ Always use the contact's first name in greeting.`
     targetCountries,
     emailSettings,
     miningSettings,
+    loading,
     
     // Setters
     setApiKeys,
@@ -185,6 +206,7 @@ Always use the contact's first name in greeting.`
     // Utilities
     getApiKey,
     isApiActive,
-    saveSettings
+    saveSettings,
+    loadSettings
   };
 }

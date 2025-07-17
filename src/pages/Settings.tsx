@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { 
@@ -487,62 +488,32 @@ const Settings = () => {
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="frequencyHours">Mining Frequency (hours)</Label>
-                          <Input
-                            id="frequencyHours"
-                            type="number"
-                            min="1"
-                            max="168"
-                            value={miningSettings.frequencyHours}
-                            onChange={(e) => setMiningSettings(prev => ({
-                              ...prev,
-                              frequencyHours: parseInt(e.target.value) || 24
-                            }))}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            How often to run automated mining
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label htmlFor="enableSignalDetection">Signal Detection</Label>
+                           <Label htmlFor="frequency">Mining Frequency</Label>
+                           <Select 
+                             value={miningSettings.frequency} 
+                             onValueChange={(value) => setMiningSettings(prev => ({
+                               ...prev,
+                               frequency: value
+                             }))}
+                           >
+                             <SelectTrigger>
+                               <SelectValue placeholder="Select frequency" />
+                             </SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="hourly">Hourly</SelectItem>
+                               <SelectItem value="daily">Daily</SelectItem>
+                               <SelectItem value="weekly">Weekly</SelectItem>
+                               <SelectItem value="monthly">Monthly</SelectItem>
+                             </SelectContent>
+                           </Select>
                             <p className="text-xs text-muted-foreground">
-                              Automatically detect company signals and news
+                              How often to run automated mining
                             </p>
                           </div>
-                          <Switch
-                            id="enableSignalDetection"
-                            checked={miningSettings.enableSignalDetection}
-                            onCheckedChange={(checked) => setMiningSettings(prev => ({
-                              ...prev,
-                              enableSignalDetection: checked
-                            }))}
-                          />
                         </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <Label htmlFor="enableAutoEnrichment">Auto-Enrichment</Label>
-                            <p className="text-xs text-muted-foreground">
-                              Automatically enrich leads with additional data
-                            </p>
-                          </div>
-                          <Switch
-                            id="enableAutoEnrichment"
-                            checked={miningSettings.enableAutoEnrichment}
-                            onCheckedChange={(checked) => setMiningSettings(prev => ({
-                              ...prev,
-                              enableAutoEnrichment: checked
-                            }))}
-                          />
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
+                     </CardContent>
+                   </Card>
+                 </TabsContent>
               </Tabs>
 
               <div className="flex justify-end">

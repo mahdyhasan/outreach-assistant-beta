@@ -14,18 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          action: string | null
+          created_at: string | null
+          entity_id: string | null
+          entity_type: string | null
+          id: string
+          metadata: Json | null
+          user_id: string | null
+        }
+        Insert: {
+          action?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string | null
+          created_at?: string | null
+          entity_id?: string | null
+          entity_type?: string | null
+          id?: string
+          metadata?: Json | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       companies: {
         Row: {
           ai_score: number | null
           company_name: string
+          country: string | null
           created_at: string
           description: string | null
           employee_size: string | null
+          employee_size_numeric: number | null
           enrichment_data: Json | null
           founded: string | null
+          founded_year: number | null
           id: string
           industry: string | null
           linkedin_profile: string | null
+          location: string | null
           public_email: string | null
           public_phone: string | null
           source: string | null
@@ -36,14 +78,18 @@ export type Database = {
         Insert: {
           ai_score?: number | null
           company_name: string
+          country?: string | null
           created_at?: string
           description?: string | null
           employee_size?: string | null
+          employee_size_numeric?: number | null
           enrichment_data?: Json | null
           founded?: string | null
+          founded_year?: number | null
           id?: string
           industry?: string | null
           linkedin_profile?: string | null
+          location?: string | null
           public_email?: string | null
           public_phone?: string | null
           source?: string | null
@@ -54,14 +100,18 @@ export type Database = {
         Update: {
           ai_score?: number | null
           company_name?: string
+          country?: string | null
           created_at?: string
           description?: string | null
           employee_size?: string | null
+          employee_size_numeric?: number | null
           enrichment_data?: Json | null
           founded?: string | null
+          founded_year?: number | null
           id?: string
           industry?: string | null
           linkedin_profile?: string | null
+          location?: string | null
           public_email?: string | null
           public_phone?: string | null
           source?: string | null
@@ -79,6 +129,7 @@ export type Database = {
           created_at: string
           designation: string
           email: string | null
+          email_status: string | null
           facebook_profile: string | null
           first_name: string
           id: string
@@ -95,6 +146,7 @@ export type Database = {
           created_at?: string
           designation: string
           email?: string | null
+          email_status?: string | null
           facebook_profile?: string | null
           first_name: string
           id?: string
@@ -111,6 +163,7 @@ export type Database = {
           created_at?: string
           designation?: string
           email?: string | null
+          email_status?: string | null
           facebook_profile?: string | null
           first_name?: string
           id?: string
@@ -130,32 +183,442 @@ export type Database = {
           },
         ]
       }
-      mining_settings: {
+      email_campaign_steps: {
         Row: {
-          auto_approval_threshold: number | null
-          daily_limit: number | null
-          frequency: string | null
-          icp_criteria: Json | null
+          campaign_id: string | null
+          channel: string | null
+          created_at: string | null
+          delay_days: number | null
           id: string
-          updated_at: string | null
+          step_order: number | null
+          template_id: string | null
         }
         Insert: {
-          auto_approval_threshold?: number | null
-          daily_limit?: number | null
-          frequency?: string | null
-          icp_criteria?: Json | null
+          campaign_id?: string | null
+          channel?: string | null
+          created_at?: string | null
+          delay_days?: number | null
           id?: string
-          updated_at?: string | null
+          step_order?: number | null
+          template_id?: string | null
         }
         Update: {
-          auto_approval_threshold?: number | null
-          daily_limit?: number | null
-          frequency?: string | null
-          icp_criteria?: Json | null
+          campaign_id?: string | null
+          channel?: string | null
+          created_at?: string | null
+          delay_days?: number | null
           id?: string
-          updated_at?: string | null
+          step_order?: number | null
+          template_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "email_campaign_steps_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_campaign_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_campaigns: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          schedule_time: string | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          schedule_time?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          schedule_time?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_campaigns_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_queue: {
+        Row: {
+          campaign_id: string | null
+          created_at: string
+          decision_maker_id: string
+          id: string
+          last_opened: string | null
+          open_count: number | null
+          scheduled_time: string
+          sent_time: string | null
+          status: string
+          template_id: string
+        }
+        Insert: {
+          campaign_id?: string | null
+          created_at?: string
+          decision_maker_id: string
+          id?: string
+          last_opened?: string | null
+          open_count?: number | null
+          scheduled_time: string
+          sent_time?: string | null
+          status?: string
+          template_id: string
+        }
+        Update: {
+          campaign_id?: string | null
+          created_at?: string
+          decision_maker_id?: string
+          id?: string
+          last_opened?: string | null
+          open_count?: number | null
+          scheduled_time?: string
+          sent_time?: string | null
+          status?: string
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_queue_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "email_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_queue_decision_maker_id_fkey"
+            columns: ["decision_maker_id"]
+            isOneToOne: false
+            referencedRelation: "decision_makers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_queue_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "email_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_default: boolean | null
+          name: string
+          subject: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name: string
+          subject: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      enrichment_history: {
+        Row: {
+          company_id: string
+          created_at: string
+          data: Json | null
+          enrichment_type: string
+          error_message: string | null
+          id: string
+          success: boolean
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          data?: Json | null
+          enrichment_type: string
+          error_message?: string | null
+          id?: string
+          success: boolean
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          data?: Json | null
+          enrichment_type?: string
+          error_message?: string | null
+          id?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrichment_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      export_items: {
+        Row: {
+          company_id: string | null
+          created_at: string
+          decision_maker_id: string | null
+          export_id: string
+          id: string
+        }
+        Insert: {
+          company_id?: string | null
+          created_at?: string
+          decision_maker_id?: string | null
+          export_id: string
+          id?: string
+        }
+        Update: {
+          company_id?: string | null
+          created_at?: string
+          decision_maker_id?: string | null
+          export_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "export_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_items_decision_maker_id_fkey"
+            columns: ["decision_maker_id"]
+            isOneToOne: false
+            referencedRelation: "decision_makers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "export_items_export_id_fkey"
+            columns: ["export_id"]
+            isOneToOne: false
+            referencedRelation: "exports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      exports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          file_path: string | null
+          filters: Json | null
+          format: string
+          id: string
+          name: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          filters?: Json | null
+          format?: string
+          id?: string
+          name: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          file_path?: string | null
+          filters?: Json | null
+          format?: string
+          id?: string
+          name?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_score_history: {
+        Row: {
+          breakdown: Json | null
+          company_id: string | null
+          created_at: string | null
+          id: string
+          reason: string | null
+          total_score: number | null
+        }
+        Insert: {
+          breakdown?: Json | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          total_score?: number | null
+        }
+        Update: {
+          breakdown?: Json | null
+          company_id?: string | null
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          total_score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_score_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mining_results: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          matched_criteria: Json | null
+          session_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          matched_criteria?: Json | null
+          session_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          matched_criteria?: Json | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mining_results_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mining_results_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "mining_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mining_sessions: {
+        Row: {
+          companies_found: number | null
+          completed_at: string | null
+          created_at: string
+          criteria: Json
+          error_message: string | null
+          id: string
+          name: string
+          started_at: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          companies_found?: number | null
+          completed_at?: string | null
+          created_at?: string
+          criteria?: Json
+          error_message?: string | null
+          id?: string
+          name: string
+          started_at?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          companies_found?: number | null
+          completed_at?: string | null
+          created_at?: string
+          criteria?: Json
+          error_message?: string | null
+          id?: string
+          name?: string
+          started_at?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mining_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       signals: {
         Row: {
@@ -206,6 +669,95 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_settings: {
+        Row: {
+          api_keys: Json | null
+          auto_approval_threshold: number | null
+          created_at: string | null
+          daily_limit: number | null
+          daily_send_limit: number | null
+          email_prompt: string | null
+          email_signature: string | null
+          frequency: string | null
+          id: string
+          mining_preferences: Json | null
+          reply_monitoring: boolean | null
+          scoring_weights: Json | null
+          target_countries: Json | null
+          tracking_duration: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          api_keys?: Json | null
+          auto_approval_threshold?: number | null
+          created_at?: string | null
+          daily_limit?: number | null
+          daily_send_limit?: number | null
+          email_prompt?: string | null
+          email_signature?: string | null
+          frequency?: string | null
+          id?: string
+          mining_preferences?: Json | null
+          reply_monitoring?: boolean | null
+          scoring_weights?: Json | null
+          target_countries?: Json | null
+          tracking_duration?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          api_keys?: Json | null
+          auto_approval_threshold?: number | null
+          created_at?: string | null
+          daily_limit?: number | null
+          daily_send_limit?: number | null
+          email_prompt?: string | null
+          email_signature?: string | null
+          frequency?: string | null
+          id?: string
+          mining_preferences?: Json | null
+          reply_monitoring?: boolean | null
+          scoring_weights?: Json | null
+          target_countries?: Json | null
+          tracking_duration?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      users: {
+        Row: {
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
