@@ -36,15 +36,15 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get lead data with enrichment
-    const { data: lead, error: leadError } = await supabase
-      .from('leads')
+    // Get company data with enrichment
+    const { data: company, error: companyError } = await supabase
+      .from('companies')
       .select('*')
       .eq('id', leadId)
       .single();
 
-    if (leadError || !lead) {
-      throw new Error('Lead not found');
+    if (companyError || !company) {
+      throw new Error('Company not found');
     }
 
     // Get scoring settings
@@ -55,31 +55,30 @@ serve(async (req) => {
       .single();
 
     // Prepare data for ChatGPT analysis
-    const leadContext = {
-      contact_name: lead.contact_name,
-      job_title: lead.job_title,
-      company_name: lead.company_name,
-      industry: lead.industry,
-      company_size: lead.company_size,
-      location: lead.location,
-      website: lead.website,
-      enrichment_data: lead.enrichment_data || {},
-      current_score: lead.ai_score,
+    const companyContext = {
+      company_name: company.company_name,
+      industry: company.industry,
+      employee_size: company.employee_size,
+      location: company.location,
+      website: company.website,
+      description: company.description,
+      enrichment_data: company.enrichment_data || {},
+      current_score: company.ai_score,
     };
 
     // Create scoring prompt
     const scoringPrompt = `
-You are a B2B lead scoring AI. Analyze this lead and provide a score from 0-100 based on their potential value.
+You are a B2B lead scoring AI. Analyze this company and provide a score from 0-100 based on their potential value.
 
-Lead Information:
-- Contact: ${leadContext.contact_name} (${leadContext.job_title})
-- Company: ${leadContext.company_name}
-- Industry: ${leadContext.industry}
-- Company Size: ${leadContext.company_size}
-- Location: ${leadContext.location}
-- Website: ${leadContext.website}
+Company Information:
+- Company: ${companyContext.company_name}
+- Industry: ${companyContext.industry}
+- Employee Size: ${companyContext.employee_size}
+- Location: ${companyContext.location}
+- Website: ${companyContext.website}
+- Description: ${companyContext.description}
 
-Enrichment Data: ${JSON.stringify(leadContext.enrichment_data, null, 2)}
+Enrichment Data: ${JSON.stringify(companyContext.enrichment_data, null, 2)}
 
 Scoring Criteria (prioritize these):
 ${JSON.stringify(customCriteria || settings?.icp_criteria || {}, null, 2)}
@@ -146,14 +145,23 @@ Respond ONLY with valid JSON in this format:
       }
     }
 
-    // Update lead with AI score
-    const { data: updatedLead, error: updateError } = await supabase
-      .from('leads')
+    // Update company with AI score
+    const { data: updatedCompany, error: updateError } = await supabase
+      .from('companies')
       .update({
         ai_score: scoringResult.score,
-        final_score: scoringResult.score, // Use AI score as final score unless human override exists
-        priority: scoringResult.priority,
-        score_reason: scoringResult.reasons,
+        status: scoringResult.priority === 'high' ? 'approved' : 'pending_review',
+        enrichment_data: {
+          ...company.enrichment_data,
+          ai_analysis: {
+            score: scoringResult.score,
+            reasons: scoringResult.reasons,
+            priority: scoringResult.priority,
+            recommended_actions: scoringResult.recommended_actions,
+            analysis: scoringResult.analysis,
+            scored_at: new Date().toISOString()
+          }
+        },
         updated_at: new Date().toISOString(),
       })
       .eq('id', leadId)
@@ -161,7 +169,7 @@ Respond ONLY with valid JSON in this format:
       .single();
 
     if (updateError) {
-      console.error('Error updating lead score:', updateError);
+      console.error('Error updating company score:', updateError);
       throw new Error(`Database update error: ${updateError.message}`);
     }
 
@@ -170,7 +178,7 @@ Respond ONLY with valid JSON in this format:
     return new Response(
       JSON.stringify({
         success: true,
-        lead: updatedLead,
+        company: updatedCompany,
         scoring_result: scoringResult,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

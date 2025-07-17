@@ -8,9 +8,11 @@ const corsHeaders = {
 };
 
 interface EmailGenerationRequest {
-  leadId: string;
-  template?: string;
-  customPrompt?: string;
+  company_id: string;
+  decision_maker_id?: string;
+  template_id?: string;
+  custom_prompt?: string;
+  email_type?: 'outreach' | 'follow_up' | 'demo_request' | 'case_study';
 }
 
 serve(async (req) => {
@@ -19,79 +21,112 @@ serve(async (req) => {
   }
 
   try {
-    const { leadId, template, customPrompt }: EmailGenerationRequest = await req.json();
+    const { 
+      company_id, 
+      decision_maker_id, 
+      template_id, 
+      custom_prompt,
+      email_type = 'outreach' 
+    } = await req.json() as EmailGenerationRequest;
+
+    if (!company_id) {
+      throw new Error('Company ID is required');
+    }
     
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('Starting email generation for lead:', leadId);
-
-    // Get lead data with enrichment
-    const { data: lead, error: leadError } = await supabaseClient
-      .from('leads')
-      .select('*')
-      .eq('id', leadId)
-      .single();
-
-    if (leadError || !lead) {
-      throw new Error('Lead not found');
+    // Get authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
-    // Get email settings from settings
-    const { data: settings } = await supabaseClient
-      .from('mining_settings')
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('Starting email generation for company:', company_id);
+
+    // Get company data
+    const { data: company, error: companyError } = await supabaseClient
+      .from('companies')
       .select('*')
-      .limit(1)
+      .eq('id', company_id)
+      .eq('user_id', user.id)
       .single();
 
-    // Prepare lead context for email generation
-    const leadContext = {
-      first_name: lead.contact_name.split(' ')[0],
-      full_name: lead.contact_name,
-      job_title: lead.job_title,
-      company_name: lead.company_name,
-      industry: lead.industry,
-      company_size: lead.company_size,
-      location: lead.location,
-      website: lead.website,
-      score: lead.final_score || lead.ai_score,
-      enrichment_data: lead.enrichment_data || {},
-    };
+    if (companyError || !company) {
+      throw new Error('Company not found or access denied');
+    }
 
-    // Create email generation prompt
-    const emailPrompt = customPrompt || `
-You are an expert sales email writer. Generate a personalized cold outreach email for this lead.
+    // Get decision maker data if provided
+    let decisionMaker = null;
+    if (decision_maker_id) {
+      const { data: dm } = await supabaseClient
+        .from('decision_makers')
+        .select('*')
+        .eq('id', decision_maker_id)
+        .eq('company_id', company_id)
+        .single();
+      decisionMaker = dm;
+    }
 
-Lead Information:
-- Name: ${leadContext.first_name} ${leadContext.full_name}
-- Title: ${leadContext.job_title}
-- Company: ${leadContext.company_name}
-- Industry: ${leadContext.industry}
-- Company Size: ${leadContext.company_size}
-- Location: ${leadContext.location}
-- Website: ${leadContext.website}
-- Lead Score: ${leadContext.score}/100
+    // Get user settings
+    const { data: userSettings } = await supabaseClient
+      .from('user_settings')
+      .select('email_signature, email_prompt')
+      .eq('user_id', user.id)
+      .single();
 
-Additional Context: ${JSON.stringify(leadContext.enrichment_data, null, 2)}
+    // Prepare context for email generation
+    const emailPrompt = custom_prompt || userSettings?.email_prompt || `
+You are an expert B2B sales email writer. Create a personalized, compelling email based on the following information:
 
-Email Requirements:
-- Use "${leadContext.first_name}" for personalization
-- Keep it professional but conversational
-- Length: 150-200 words maximum
-- Include a clear call-to-action
-- Reference something specific about their company/role
-- No generic sales language
-- Subject line should be compelling and personal
+COMPANY INFORMATION:
+- Company: ${company.company_name}
+- Industry: ${company.industry || 'Unknown'}
+- Size: ${company.employee_size || 'Unknown'} employees
+- Website: ${company.website || 'Not provided'}
+- Description: ${company.description || 'No description available'}
+- Location: ${company.location || 'Unknown'}
+
+DECISION MAKER:
+${decisionMaker ? `
+- Name: ${decisionMaker.first_name} ${decisionMaker.last_name}
+- Title: ${decisionMaker.designation}
+- LinkedIn: ${decisionMaker.linkedin_profile || 'Not available'}
+` : 'No specific decision maker identified - use generic addressing like "Hello there" or "Hi team"'}
+
+ENRICHMENT DATA:
+${JSON.stringify(company.enrichment_data || {}, null, 2)}
+
+EMAIL TYPE: ${email_type}
+
+REQUIREMENTS:
+1. Subject line should be compelling and specific to the company
+2. Email should be personalized using company/person data
+3. Keep it concise (under 150 words)
+4. Include a clear call-to-action
+5. Professional but conversational tone
+6. Reference specific company details or recent developments if available
+7. If no decision maker name, use professional generic greeting
 
 Respond ONLY with valid JSON in this format:
 {
   "subject": "Email subject line",
-  "content": "Email body content including greeting, body, and signature placeholder"
+  "content": "Email body content with greeting, body, and professional closing"
 }
-
-Note: The signature will be added automatically, so end with a professional closing like "Best regards," without adding an actual signature.`;
+`;
 
     // Call ChatGPT for email generation
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -129,44 +164,50 @@ Note: The signature will be added automatically, so end with a professional clos
     const openaiData = await openaiResponse.json();
     const emailResult = JSON.parse(openaiData.choices[0].message.content);
 
-    console.log('Email generated successfully');
+    console.log('Email generated successfully for:', company.company_name);
 
-    // Get email signature from settings (default if not set)
-    const emailSignature = settings?.email_signature || `
+    // Get email signature
+    const emailSignature = userSettings?.email_signature || `
 Best regards,
 [Your Name]
-[Your Title]
+[Your Title] 
 [Your Company]
-[Your Phone]
-[Your Email]`;
+[Your Contact Info]`;
 
     // Combine email content with signature
     const finalEmailContent = `${emailResult.content}\n\n${emailSignature}`;
 
-    // Save email to queue
-    const { data: emailQueue, error: queueError } = await supabaseClient
+    // Save email to queue (optional)
+    const { data: emailQueue } = await supabaseClient
       .from('email_queue')
       .insert({
-        lead_id: leadId,
-        recipient_email: lead.email,
-        subject: emailResult.subject,
-        content: finalEmailContent,
-        status: 'pending',
+        decision_maker_id: decision_maker_id,
+        template_id: template_id,
+        scheduled_time: new Date().toISOString(),
+        status: 'draft'
       })
       .select()
       .single();
 
-    if (queueError) {
-      throw queueError;
-    }
-
-    console.log('Email added to queue:', emailQueue.id);
-
     return new Response(
       JSON.stringify({
         success: true,
-        email: emailQueue,
-        generated_content: emailResult,
+        email: {
+          subject: emailResult.subject,
+          content: finalEmailContent
+        },
+        company: {
+          id: company.id,
+          name: company.company_name,
+          industry: company.industry
+        },
+        decision_maker: decisionMaker ? {
+          id: decisionMaker.id,
+          name: `${decisionMaker.first_name} ${decisionMaker.last_name}`,
+          title: decisionMaker.designation
+        } : null,
+        email_queue_id: emailQueue?.id,
+        generated_at: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
