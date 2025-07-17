@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,11 +23,30 @@ export const EmailTemplateDialog = ({
   loading = false
 }: EmailTemplateDialogProps) => {
   const [formData, setFormData] = useState({
-    name: template?.name || '',
-    subject: template?.subject || '',
-    content: template?.content || '',
-    is_default: template?.is_default || false
+    name: '',
+    subject: '',
+    content: '',
+    is_default: false
   });
+
+  // Update form data when template changes
+  useEffect(() => {
+    if (template) {
+      setFormData({
+        name: template.name || '',
+        subject: template.subject || '',
+        content: template.content || '',
+        is_default: template.is_default || false
+      });
+    } else {
+      setFormData({
+        name: '',
+        subject: '',
+        content: '',
+        is_default: false
+      });
+    }
+  }, [template]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

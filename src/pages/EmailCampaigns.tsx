@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,8 +12,16 @@ import {
   Pause,
   BarChart3,
   FileText,
-  Send
+  Send,
+  Clock,
+  CheckCircle,
+  Users,
+  TrendingUp,
+  Copy,
+  Eye
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
@@ -25,11 +33,18 @@ import { CampaignDialog } from "@/components/email-campaigns/CampaignDialog";
 const EmailCampaigns = () => {
   const { templates, loading: templatesLoading, createTemplate, updateTemplate, deleteTemplate } = useEmailTemplates();
   const { campaigns, loading: campaignsLoading, createCampaign, updateCampaign, deleteCampaign } = useEmailCampaigns();
+  const { toast } = useToast();
   
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [editingCampaign, setEditingCampaign] = useState(null);
+  const [emailStats, setEmailStats] = useState({
+    totalSent: 0,
+    totalPending: 0,
+    totalOpened: 0,
+    openRate: 0
+  });
 
   const handleCreateTemplate = async (template) => {
     await createTemplate(template);
@@ -57,6 +72,35 @@ const EmailCampaigns = () => {
     }
   };
 
+  // Fetch email statistics
+  useEffect(() => {
+    const fetchEmailStats = async () => {
+      try {
+        const { data: emailQueue, error } = await supabase
+          .from('email_queue')
+          .select('status, open_count, sent_time');
+
+        if (error) throw error;
+
+        const totalSent = emailQueue?.filter(email => email.status === 'sent').length || 0;
+        const totalPending = emailQueue?.filter(email => email.status === 'pending').length || 0;
+        const totalOpened = emailQueue?.reduce((sum, email) => sum + (email.open_count || 0), 0) || 0;
+        const openRate = totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0;
+
+        setEmailStats({
+          totalSent,
+          totalPending,
+          totalOpened,
+          openRate
+        });
+      } catch (error) {
+        console.error('Error fetching email stats:', error);
+      }
+    };
+
+    fetchEmailStats();
+  }, []);
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'draft': return 'secondary';
@@ -64,6 +108,48 @@ const EmailCampaigns = () => {
       case 'paused': return 'outline';
       case 'completed': return 'outline';
       default: return 'secondary';
+    }
+  };
+
+  const handleDuplicateTemplate = async (template) => {
+    try {
+      await createTemplate({
+        name: `${template.name} (Copy)`,
+        subject: template.subject,
+        content: template.content,
+        is_default: false
+      });
+      toast({
+        title: "Success",
+        description: "Template duplicated successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate template",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDuplicateCampaign = async (campaign) => {
+    try {
+      await createCampaign({
+        name: `${campaign.name} (Copy)`,
+        description: campaign.description,
+        status: 'draft',
+        schedule_time: null
+      });
+      toast({
+        title: "Success",
+        description: "Campaign duplicated successfully"
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to duplicate campaign",
+        variant: "destructive"
+      });
     }
   };
 
@@ -118,7 +204,7 @@ const EmailCampaigns = () => {
                       <Send className="h-5 w-5 text-purple-500" />
                       <div>
                         <div className="text-sm text-muted-foreground">Emails Sent</div>
-                        <div className="text-2xl font-bold">0</div>
+                        <div className="text-2xl font-bold">{emailStats.totalSent}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -130,7 +216,34 @@ const EmailCampaigns = () => {
                       <BarChart3 className="h-5 w-5 text-orange-500" />
                       <div>
                         <div className="text-sm text-muted-foreground">Open Rate</div>
-                        <div className="text-2xl font-bold">0%</div>
+                        <div className="text-2xl font-bold">{emailStats.openRate}%</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Additional Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-amber-500" />
+                      <div>
+                        <div className="text-sm text-muted-foreground">Pending Emails</div>
+                        <div className="text-2xl font-bold">{emailStats.totalPending}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="pt-6">
+                    <div className="flex items-center gap-3">
+                      <Eye className="h-5 w-5 text-indigo-500" />
+                      <div>
+                        <div className="text-sm text-muted-foreground">Total Opens</div>
+                        <div className="text-2xl font-bold">{emailStats.totalOpened}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -190,6 +303,13 @@ const EmailCampaigns = () => {
                                   }}
                                 >
                                   <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDuplicateCampaign(campaign)}
+                                >
+                                  <Copy className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   size="sm"
@@ -262,6 +382,13 @@ const EmailCampaigns = () => {
                                   }}
                                 >
                                   <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDuplicateTemplate(template)}
+                                >
+                                  <Copy className="h-4 w-4" />
                                 </Button>
                                 <Button
                                   size="sm"

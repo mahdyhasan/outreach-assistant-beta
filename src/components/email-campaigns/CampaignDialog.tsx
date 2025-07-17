@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,12 +22,36 @@ export const CampaignDialog = ({
   onSave,
   loading = false
 }: CampaignDialogProps) => {
-  const [formData, setFormData] = useState({
-    name: campaign?.name || '',
-    description: campaign?.description || '',
-    status: campaign?.status || 'draft' as const,
-    schedule_time: campaign?.schedule_time || null
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    status: 'draft' | 'active' | 'paused' | 'completed';
+    schedule_time: string | null;
+  }>({
+    name: '',
+    description: '',
+    status: 'draft',
+    schedule_time: null
   });
+
+  // Update form data when campaign changes
+  useEffect(() => {
+    if (campaign) {
+      setFormData({
+        name: campaign.name || '',
+        description: campaign.description || '',
+        status: campaign.status || 'draft',
+        schedule_time: campaign.schedule_time || null
+      });
+    } else {
+      setFormData({
+        name: '',
+        description: '',
+        status: 'draft',
+        schedule_time: null
+      });
+    }
+  }, [campaign]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
