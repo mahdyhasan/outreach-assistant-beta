@@ -96,11 +96,12 @@ export function LeadManagementContent() {
       </Card>
 
       {/* Dialogs */}
-      <LeadDetailsDialog 
-        open={dialogType === 'details'} 
-        onOpenChange={closeDialog}
-        lead={selectedLead}
-      />
+        <LeadDetailsDialog
+          open={dialogType === 'details'}
+          onOpenChange={closeDialog}
+          lead={selectedLead}
+          onRefresh={refetch}
+        />
       
       <EditLeadDialog 
         open={dialogType === 'edit'} 

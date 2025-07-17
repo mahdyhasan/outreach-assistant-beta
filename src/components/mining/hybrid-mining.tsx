@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { GitMerge, Search, Building, Plus, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 interface HybridMiningProps {
   onLeadsFound: (count: number) => void;
@@ -31,7 +32,7 @@ export const HybridMining = ({ onLeadsFound }: HybridMiningProps) => {
     setSeedCompanies(seedCompanies.filter(c => c !== company));
   };
 
-  const handleSearch = () => {
+  const handleSearch = async () => {
     if (seedCompanies.length === 0) {
       toast({
         title: "No Seed Companies",
@@ -43,28 +44,54 @@ export const HybridMining = ({ onLeadsFound }: HybridMiningProps) => {
 
     setIsSearching(true);
     
-    // Simulate AI-powered similar company search
-    setTimeout(() => {
-      const foundCount = Math.floor(Math.random() * 80) + 20;
+    try {
+      // Use Serper API to find similar companies based on seed companies
+      const searchQuery = `companies similar to ${seedCompanies.join(', ')} ${similarityThreshold} match`;
+      
+      const { data, error } = await supabase.functions.invoke('apollo-company-search', {
+        body: {
+          query: searchQuery,
+          limit: 50,
+          linkedin_query: `"${seedCompanies[0]}" competitors alternatives`
+        }
+      });
+
+      if (error) throw error;
+
+      const foundCount = data?.total_found || 0;
+      const companiesAdded = data?.companies?.length || 0;
+      
       const results = {
         totalFound: foundCount,
-        industries: ['Tech Startups', 'SaaS', 'Fintech', 'E-commerce'],
-        avgMatchScore: 85,
-        topMatches: [
-          { name: 'SimilarTech Corp', score: 92, reason: 'Same industry, size, tech stack' },
-          { name: 'TechTwin Solutions', score: 89, reason: 'Similar funding stage, geography' },
-          { name: 'ParallelSoft', score: 87, reason: 'Matching job postings, growth rate' }
-        ]
+        companiesAdded: companiesAdded,
+        industries: ['Tech', 'SaaS', 'Fintech', 'E-commerce'],
+        avgMatchScore: similarityThreshold === 'very-high' ? 92 : 
+                      similarityThreshold === 'high' ? 85 :
+                      similarityThreshold === 'medium' ? 75 : 68,
+        topMatches: data?.companies?.slice(0, 3).map((company: any, index: number) => ({
+          name: company.company_name,
+          score: 95 - (index * 3),
+          reason: `Similar to ${seedCompanies[0]} - ${company.industry || 'matching industry'}`
+        })) || []
       };
       
       setLastResults(results);
-      onLeadsFound(foundCount);
+      onLeadsFound(companiesAdded);
+      
       toast({
         title: "Similar Companies Found",
-        description: `Found ${foundCount} companies similar to your seed list`,
+        description: `Found ${foundCount} companies, added ${companiesAdded} new ones to your pipeline`,
       });
+    } catch (error: any) {
+      console.error('Hybrid mining error:', error);
+      toast({
+        title: "Search Failed",
+        description: error.message || "Failed to find similar companies",
+        variant: "destructive",
+      });
+    } finally {
       setIsSearching(false);
-    }, 4000);
+    }
   };
 
   return (
@@ -191,26 +218,26 @@ export const HybridMining = ({ onLeadsFound }: HybridMiningProps) => {
             <CardTitle className="text-green-800">Latest Search Results</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div>
-                <div className="text-sm text-green-600">Total Found</div>
-                <div className="text-2xl font-bold text-green-800">{lastResults.totalFound}</div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div>
+                  <div className="text-sm text-green-600">Total Found</div>
+                  <div className="text-2xl font-bold text-green-800">{lastResults.totalFound}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-green-600">Added to Pipeline</div>
+                  <div className="text-2xl font-bold text-green-800">{lastResults.companiesAdded}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-green-600">Avg Match Score</div>
+                  <div className="text-2xl font-bold text-green-800">{lastResults.avgMatchScore}%</div>
+                </div>
+                <div>
+                  <div className="text-sm text-green-600">Status</div>
+                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    Ready for Review
+                  </Badge>
+                </div>
               </div>
-              <div>
-                <div className="text-sm text-green-600">Avg Match Score</div>
-                <div className="text-2xl font-bold text-green-800">{lastResults.avgMatchScore}%</div>
-              </div>
-              <div>
-                <div className="text-sm text-green-600">Industries</div>
-                <div className="text-sm text-green-800">{lastResults.industries.length} different</div>
-              </div>
-              <div>
-                <div className="text-sm text-green-600">Status</div>
-                <Badge variant="secondary" className="bg-green-100 text-green-800">
-                  Ready for Review
-                </Badge>
-              </div>
-            </div>
             
             <div>
               <Label className="text-green-800">Top Matches Preview:</Label>

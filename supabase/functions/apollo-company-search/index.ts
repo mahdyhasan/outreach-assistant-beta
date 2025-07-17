@@ -8,9 +8,10 @@ const corsHeaders = {
 };
 
 interface CompanySearchRequest {
+  query?: string;           // Add the main search query
   industry?: string;
   location?: string;
-  employee_size?: string;
+  size?: string;           // Change from employee_size to size to match frontend
   limit?: number;
   linkedin_query?: string;
 }
@@ -29,9 +30,9 @@ serve(async (req) => {
       throw new Error('Apollo API key not configured');
     }
 
-    const { industry, location, employee_size, limit = 20, linkedin_query } = await req.json() as CompanySearchRequest;
+    const { query, industry, location, size, limit = 20, linkedin_query } = await req.json() as CompanySearchRequest;
 
-    console.log('Searching companies with criteria:', { industry, location, employee_size, limit, linkedin_query });
+    console.log('Searching companies with criteria:', { query, industry, location, size, limit, linkedin_query });
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -42,13 +43,14 @@ serve(async (req) => {
     let companies: any[] = [];
 
     // Primary search using Apollo
-    if (industry || location || employee_size) {
+    if (query || industry || location || size) {
       const apolloSearchBody = {
         api_key: apolloApiKey,
         q_organization_domain_exists: true,
+        q_organization_name: query || undefined,
         organization_locations: location ? [location] : undefined,
         organization_industry_tag_ids: industry ? [industry] : undefined,
-        organization_num_employees_ranges: employee_size ? [employee_size] : undefined,
+        organization_num_employees_ranges: size ? [size] : undefined,
         page: 1,
         per_page: Math.min(limit, 100)
       };
@@ -96,8 +98,9 @@ serve(async (req) => {
     }
 
     // LinkedIn search enhancement using Serper (if query provided)
-    if (linkedin_query && serperApiKey && companies.length < limit) {
-      const linkedinSearchQuery = `site:linkedin.com/company ${linkedin_query} ${industry || ''} ${location || ''}`.trim();
+    const searchQuery = linkedin_query || query;
+    if (searchQuery && serperApiKey && companies.length < limit) {
+      const linkedinSearchQuery = `site:linkedin.com/company ${searchQuery} ${industry || ''} ${location || ''}`.trim();
       
       const serperResponse = await fetch('https://google.serper.dev/search', {
         method: 'POST',
@@ -162,7 +165,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({
         success: true,
         companies: insertedCompanies,
-        count: insertedCompanies?.length || 0,
+        total_found: companies.length,
+        decision_makers_found: 0, // Will be updated when decision makers are found
         message: `Found and stored ${insertedCompanies?.length || 0} companies`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

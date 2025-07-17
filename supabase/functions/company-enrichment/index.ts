@@ -8,7 +8,8 @@ const corsHeaders = {
 };
 
 interface EnrichmentRequest {
-  companyId: string;
+  company_id: string;  // Match frontend parameter name
+  enrichment_type?: string;
 }
 
 serve(async (req) => {
@@ -17,9 +18,9 @@ serve(async (req) => {
   }
 
   try {
-    const { companyId } = await req.json() as EnrichmentRequest;
+    const { company_id, enrichment_type } = await req.json() as EnrichmentRequest;
     
-    if (!companyId) {
+    if (!company_id) {
       throw new Error('Company ID is required');
     }
 
@@ -36,7 +37,7 @@ serve(async (req) => {
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('*')
-      .eq('id', companyId)
+      .eq('id', company_id)
       .single();
 
     if (companyError || !company) {
@@ -185,7 +186,7 @@ Respond with a JSON object: {"score": 0-100, "reasoning": "explanation", "signal
         ai_score: aiScore,
         updated_at: new Date().toISOString()
       })
-      .eq('id', companyId)
+      .eq('id', company_id)
       .select()
       .single();
 

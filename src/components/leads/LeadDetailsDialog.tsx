@@ -9,15 +9,21 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CompanyLead } from "@/hooks/use-supabase-leads";
-import { Building2, User, Signal, Globe, Phone, Mail, Calendar, TrendingUp } from "lucide-react";
+import { Building2, User, Signal, Globe, Phone, Mail, Calendar, TrendingUp, UserPlus } from "lucide-react";
+import { AddDecisionMakerDialog } from "./AddDecisionMakerDialog";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface LeadDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lead: CompanyLead | null;
+  onRefresh?: () => void;
 }
 
-export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialogProps) {
+export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadDetailsDialogProps) {
+  const [showAddDecisionMaker, setShowAddDecisionMaker] = useState(false);
+
   if (!lead) return null;
 
   return (
@@ -116,9 +122,19 @@ export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialo
           {/* Decision Makers */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Decision Makers ({lead.decision_makers?.length || 0})
+              <CardTitle className="text-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4" />
+                  Decision Makers ({lead.decision_makers?.length || 0})
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddDecisionMaker(true)}
+                  className="flex items-center gap-1"
+                >
+                  <UserPlus className="h-3 w-3" />
+                  Add KDM
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -203,6 +219,16 @@ export function LeadDetailsDialog({ open, onOpenChange, lead }: LeadDetailsDialo
             </CardContent>
           </Card>
         </div>
+
+        {/* Add Decision Maker Dialog */}
+        <AddDecisionMakerDialog
+          open={showAddDecisionMaker}
+          onOpenChange={setShowAddDecisionMaker}
+          companyId={lead.id}
+          onSuccess={() => {
+            onRefresh?.();
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
