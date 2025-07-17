@@ -21,6 +21,7 @@ import { MoreHorizontal, Eye, Edit, TrendingUp, Zap, Sparkles, BarChart3 } from 
 import { CompanyLead } from "@/hooks/use-supabase-leads";
 import { useCompanyEnrichment } from "@/hooks/use-company-enrichment";
 import { useLeadScoring } from "@/hooks/use-lead-scoring";
+import { useEmailQueue } from "@/hooks/use-email-queue";
 
 interface LeadTableProps {
   leads: CompanyLead[];

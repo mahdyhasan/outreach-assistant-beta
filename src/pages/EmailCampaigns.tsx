@@ -2,17 +2,71 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Mail, 
-  Building,
-  Users,
-  Briefcase
+  Plus,
+  Edit,
+  Trash2,
+  Play,
+  Pause,
+  BarChart3,
+  FileText,
+  Send
 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
+import { useEmailTemplates } from "@/hooks/use-email-templates";
+import { useEmailCampaigns } from "@/hooks/use-email-campaigns";
+import { EmailTemplateDialog } from "@/components/email-campaigns/EmailTemplateDialog";
+import { CampaignDialog } from "@/components/email-campaigns/CampaignDialog";
 
 const EmailCampaigns = () => {
+  const { templates, loading: templatesLoading, createTemplate, updateTemplate, deleteTemplate } = useEmailTemplates();
+  const { campaigns, loading: campaignsLoading, createCampaign, updateCampaign, deleteCampaign } = useEmailCampaigns();
+  
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editingCampaign, setEditingCampaign] = useState(null);
+
+  const handleCreateTemplate = async (template) => {
+    await createTemplate(template);
+    setTemplateDialogOpen(false);
+  };
+
+  const handleUpdateTemplate = async (template) => {
+    if (editingTemplate) {
+      await updateTemplate(editingTemplate.id, template);
+      setEditingTemplate(null);
+      setTemplateDialogOpen(false);
+    }
+  };
+
+  const handleCreateCampaign = async (campaign) => {
+    await createCampaign(campaign);
+    setCampaignDialogOpen(false);
+  };
+
+  const handleUpdateCampaign = async (campaign) => {
+    if (editingCampaign) {
+      await updateCampaign(editingCampaign.id, campaign);
+      setEditingCampaign(null);
+      setCampaignDialogOpen(false);
+    }
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'draft': return 'secondary';
+      case 'active': return 'default';
+      case 'paused': return 'outline';
+      case 'completed': return 'outline';
+      default: return 'secondary';
+    }
+  };
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -23,26 +77,24 @@ const EmailCampaigns = () => {
             <div className="max-w-6xl mx-auto space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-card-foreground">Company Discovery & KDM Finding</h1>
+                  <h1 className="text-3xl font-bold text-card-foreground">Email Campaigns</h1>
                   <p className="text-muted-foreground mt-2">
-                    Find qualified companies and discover key decision makers
+                    Manage email templates and campaigns for lead outreach
                   </p>
                 </div>
-                <Button className="flex items-center gap-2">
-                  <Building className="h-4 w-4" />
-                  Start Company Mining
-                </Button>
               </div>
 
-              {/* Discovery Stats */}
+              {/* Campaign Stats */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <Building className="h-5 w-5 text-blue-500" />
+                      <Mail className="h-5 w-5 text-blue-500" />
                       <div>
-                        <div className="text-sm text-muted-foreground">Companies Found</div>
-                        <div className="text-2xl font-bold">234</div>
+                        <div className="text-sm text-muted-foreground">Active Campaigns</div>
+                        <div className="text-2xl font-bold">
+                          {campaigns.filter(c => c.status === 'active').length}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -51,10 +103,10 @@ const EmailCampaigns = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <Users className="h-5 w-5 text-green-500" />
+                      <FileText className="h-5 w-5 text-green-500" />
                       <div>
-                        <div className="text-sm text-muted-foreground">KDMs Discovered</div>
-                        <div className="text-2xl font-bold">156</div>
+                        <div className="text-sm text-muted-foreground">Email Templates</div>
+                        <div className="text-2xl font-bold">{templates.length}</div>
                       </div>
                     </div>
                   </CardContent>
@@ -63,10 +115,10 @@ const EmailCampaigns = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <Briefcase className="h-5 w-5 text-purple-500" />
+                      <Send className="h-5 w-5 text-purple-500" />
                       <div>
-                        <div className="text-sm text-muted-foreground">Qualified (&gt;40%)</div>
-                        <div className="text-2xl font-bold">89</div>
+                        <div className="text-sm text-muted-foreground">Emails Sent</div>
+                        <div className="text-2xl font-bold">0</div>
                       </div>
                     </div>
                   </CardContent>
@@ -75,90 +127,184 @@ const EmailCampaigns = () => {
                 <Card>
                   <CardContent className="pt-6">
                     <div className="flex items-center gap-3">
-                      <Mail className="h-5 w-5 text-orange-500" />
+                      <BarChart3 className="h-5 w-5 text-orange-500" />
                       <div>
-                        <div className="text-sm text-muted-foreground">Ready for Export</div>
-                        <div className="text-2xl font-bold">67</div>
+                        <div className="text-sm text-muted-foreground">Open Rate</div>
+                        <div className="text-2xl font-bold">0%</div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* Discovery Process */}
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building className="h-5 w-5" />
-                      Discovery Pipeline
-                    </CardTitle>
-                    <CardDescription>
-                      Automated company discovery and KDM finding process
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="p-4 border border-border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium">1. Company Discovery</h4>
-                          <Badge variant="default">Active</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Use Apollo API and LinkedIn search to find target companies based on ICP criteria
-                        </p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline">Apollo Search</Button>
-                          <Button size="sm" variant="outline">LinkedIn Query</Button>
-                          <Button size="sm" variant="outline">Manual Upload</Button>
-                        </div>
-                      </div>
+              <Tabs defaultValue="campaigns" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
+                  <TabsTrigger value="templates">Templates</TabsTrigger>
+                </TabsList>
 
-                      <div className="p-4 border border-border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium">2. Company Enrichment</h4>
-                          <Badge variant="secondary">Pending</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Enrich company data using Serper API and ChatGPT for intelligence scoring
-                        </p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" disabled>Start Enrichment</Button>
-                          <Button size="sm" variant="outline" disabled>View Results</Button>
-                        </div>
-                      </div>
+                <TabsContent value="campaigns" className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-semibold">Email Campaigns</h2>
+                    <Button onClick={() => setCampaignDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Campaign
+                    </Button>
+                  </div>
 
-                      <div className="p-4 border border-border rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium">3. KDM Discovery</h4>
-                          <Badge variant="secondary">Awaiting Qualified Companies</Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">
-                          Find CEOs, COOs, and HROs for companies scoring &gt;40%
+                  {campaignsLoading ? (
+                    <div className="text-center py-8">Loading campaigns...</div>
+                  ) : campaigns.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">No email campaigns yet</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Create your first campaign to start reaching out to leads
                         </p>
-                        <div className="flex gap-2">
-                          <Button size="sm" variant="outline" disabled>Find KDMs</Button>
-                          <Button size="sm" variant="outline" disabled>Export Data</Button>
-                        </div>
-                      </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4">
+                      {campaigns.map((campaign) => (
+                        <Card key={campaign.id}>
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <CardTitle className="flex items-center gap-2">
+                                  <Mail className="h-5 w-5" />
+                                  {campaign.name}
+                                </CardTitle>
+                                <CardDescription>{campaign.description}</CardDescription>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={getStatusColor(campaign.status)}>
+                                  {campaign.status}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingCampaign(campaign);
+                                    setCampaignDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deleteCampaign(campaign.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
+                              {campaign.schedule_time && (
+                                <span>Scheduled for {new Date(campaign.schedule_time).toLocaleString()}</span>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
                     </div>
-                  </CardContent>
-                </Card>
+                  )}
+                </TabsContent>
 
-                <Card>
-                  <CardContent className="text-center py-12">
-                    <Building className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">No active discovery campaigns</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Start with company mining to discover new prospects
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
+                <TabsContent value="templates" className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-semibold">Email Templates</h2>
+                    <Button onClick={() => setTemplateDialogOpen(true)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New Template
+                    </Button>
+                  </div>
+
+                  {templatesLoading ? (
+                    <div className="text-center py-8">Loading templates...</div>
+                  ) : templates.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                        <p className="text-muted-foreground">No email templates yet</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Create reusable templates for consistent messaging
+                        </p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <div className="grid gap-4">
+                      {templates.map((template) => (
+                        <Card key={template.id}>
+                          <CardHeader>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <CardTitle className="flex items-center gap-2">
+                                  <FileText className="h-5 w-5" />
+                                  {template.name}
+                                  {template.is_default && (
+                                    <Badge variant="outline">Default</Badge>
+                                  )}
+                                </CardTitle>
+                                <CardDescription>{template.subject}</CardDescription>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEditingTemplate(template);
+                                    setTemplateDialogOpen(true);
+                                  }}
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deleteTemplate(template.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="text-sm text-muted-foreground line-clamp-2">
+                              {template.content.substring(0, 150)}...
+                            </p>
+                            <div className="mt-2 text-xs text-muted-foreground">
+                              Created {new Date(template.created_at).toLocaleDateString()}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
             </div>
           </main>
         </div>
       </div>
+
+      <EmailTemplateDialog
+        open={templateDialogOpen}
+        onOpenChange={setTemplateDialogOpen}
+        template={editingTemplate}
+        onSave={editingTemplate ? handleUpdateTemplate : handleCreateTemplate}
+      />
+
+      <CampaignDialog
+        open={campaignDialogOpen}
+        onOpenChange={setCampaignDialogOpen}
+        campaign={editingCampaign}
+        onSave={editingCampaign ? handleUpdateCampaign : handleCreateCampaign}
+      />
     </SidebarProvider>
   );
 };
