@@ -52,6 +52,45 @@ export type Database = {
           },
         ]
       }
+      api_usage_tracking: {
+        Row: {
+          api_name: string
+          created_at: string | null
+          daily_count: number | null
+          date: string
+          hourly_counts: Json | null
+          id: string
+          last_operation: string | null
+          minute_counts: Json | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          api_name: string
+          created_at?: string | null
+          daily_count?: number | null
+          date: string
+          hourly_counts?: Json | null
+          id?: string
+          last_operation?: string | null
+          minute_counts?: Json | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          api_name?: string
+          created_at?: string | null
+          daily_count?: number | null
+          date?: string
+          hourly_counts?: Json | null
+          id?: string
+          last_operation?: string | null
+          minute_counts?: Json | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           ai_score: number | null
@@ -578,6 +617,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      mining_progress: {
+        Row: {
+          completed_at: string | null
+          current_step: string | null
+          error_message: string | null
+          id: string
+          operation_type: string
+          progress_percentage: number | null
+          results_so_far: number | null
+          session_id: string
+          started_at: string | null
+          status: string
+          total_steps: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          operation_type: string
+          progress_percentage?: number | null
+          results_so_far?: number | null
+          session_id: string
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          current_step?: string | null
+          error_message?: string | null
+          id?: string
+          operation_type?: string
+          progress_percentage?: number | null
+          results_so_far?: number | null
+          session_id?: string
+          started_at?: string | null
+          status?: string
+          total_steps?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       mining_results: {
         Row: {
