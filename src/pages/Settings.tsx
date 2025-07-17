@@ -87,12 +87,14 @@ const Settings = () => {
     setApiKeys(prev => [...prev, newKey]);
   };
 
-  const handleSave = () => {
-    saveSettings();
-    toast({
-      title: "Settings Saved",
-      description: "All your settings have been saved successfully.",
-    });
+  const handleSave = async () => {
+    const success = await saveSettings();
+    if (success) {
+      toast({
+        title: "Settings Saved",
+        description: "All your settings have been saved successfully.",
+      });
+    }
   };
 
   const toggleCountrySelection = (country: string) => {

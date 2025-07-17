@@ -107,22 +107,43 @@ Always use the contact's first name in greeting.`,
         .from('user_settings')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Error loading settings:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load settings",
+          variant: "destructive",
+        });
         return;
       }
 
       if (userSettings) {
-        // Parse API keys from JSONB
+        // Parse API keys from JSONB - merge with defaults
         if (userSettings.api_keys) {
           const apiKeysData = userSettings.api_keys as Record<string, any>;
-          const apiKeysArray = Object.values(apiKeysData) as APIKey[];
-          setApiKeys(apiKeysArray);
-        } else {
-          // If no API keys in database, keep default ones
-          console.log('No API keys found in database, using defaults');
+          const savedApiKeys = Object.values(apiKeysData) as APIKey[];
+          
+          // Merge saved keys with defaults, updating existing ones
+          const defaultKeys = [
+            { id: 'apollo', name: 'Apollo', key: '', description: 'Lead discovery and company data', isActive: false },
+            { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered email generation', isActive: false },
+            { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data enrichment', isActive: false },
+            { id: 'zoho-email', name: 'Zoho Email', key: '', description: 'Email automation platform', isActive: false }
+          ];
+          
+          const mergedKeys = defaultKeys.map(defaultKey => {
+            const savedKey = savedApiKeys.find(saved => saved.id === defaultKey.id);
+            return savedKey || defaultKey;
+          });
+          
+          // Add any custom keys that aren't in defaults
+          const customKeys = savedApiKeys.filter(saved => 
+            !defaultKeys.some(def => def.id === saved.id)
+          );
+          
+          setApiKeys([...mergedKeys, ...customKeys]);
         }
 
         // Parse scoring weights
@@ -153,6 +174,11 @@ Always use the contact's first name in greeting.`,
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load settings",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -175,7 +201,7 @@ Always use the contact's first name in greeting.`,
         description: "You must be logged in to save settings",
         variant: "destructive",
       });
-      return;
+      return false;
     }
     
     try {
@@ -185,40 +211,53 @@ Always use the contact's first name in greeting.`,
         return acc;
       }, {} as Record<string, APIKey>);
 
+      const settingsData = {
+        user_id: user.id,
+        api_keys: apiKeysObject as any,
+        email_signature: emailSettings.signature,
+        email_prompt: emailSettings.emailPrompt,
+        daily_send_limit: emailSettings.dailySendLimit,
+        tracking_duration: emailSettings.trackingDuration,
+        reply_monitoring: emailSettings.replyMonitoring,
+        daily_limit: miningSettings.dailyLimit,
+        auto_approval_threshold: miningSettings.autoApprovalThreshold,
+        frequency: miningSettings.frequency,
+        scoring_weights: scoringWeights as any,
+        target_countries: targetCountries as any,
+        updated_at: new Date().toISOString()
+      };
+
+      console.log('Saving settings data:', settingsData);
+
       const { error } = await supabase
         .from('user_settings')
-        .upsert([{
-          user_id: user.id,
-          api_keys: apiKeysObject as any,
-          email_signature: emailSettings.signature,
-          email_prompt: emailSettings.emailPrompt,
-          daily_send_limit: emailSettings.dailySendLimit,
-          tracking_duration: emailSettings.trackingDuration,
-          reply_monitoring: emailSettings.replyMonitoring,
-          daily_limit: miningSettings.dailyLimit,
-          auto_approval_threshold: miningSettings.autoApprovalThreshold,
-          frequency: miningSettings.frequency,
-          scoring_weights: scoringWeights as any,
-          target_countries: targetCountries as any,
-        }]);
+        .upsert(settingsData, {
+          onConflict: 'user_id'
+        });
 
       if (error) {
         console.error('Supabase upsert error:', error);
         toast({
           title: "Error",
-          description: "Failed to save settings",
+          description: `Failed to save settings: ${error.message}`,
           variant: "destructive",
         });
-        throw error;
+        return false;
       }
       
       toast({
         title: "Success", 
         description: "Settings saved successfully",
       });
+      return true;
     } catch (error) {
       console.error('Error saving settings:', error);
-      throw error;
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while saving settings",
+        variant: "destructive",
+      });
+      return false;
     }
   };
 
