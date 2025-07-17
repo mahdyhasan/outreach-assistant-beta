@@ -14,7 +14,6 @@ import {
   Key, 
   Globe, 
   Brain, 
-  Zap, 
   Save, 
   Eye, 
   EyeOff, 
@@ -41,8 +40,6 @@ const Settings = () => {
     setTargetCountries,
     emailSettings,
     setEmailSettings,
-    miningSettings,
-    setMiningSettings,
     saveSettings
   } = useSettings();
   
@@ -123,12 +120,11 @@ const Settings = () => {
               </div>
 
               <Tabs defaultValue="api-keys" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="api-keys">API Keys</TabsTrigger>
                   <TabsTrigger value="scoring">Scoring</TabsTrigger>
                   <TabsTrigger value="countries">Countries</TabsTrigger>
                   <TabsTrigger value="email">Email</TabsTrigger>
-                  <TabsTrigger value="mining">Mining</TabsTrigger>
                 </TabsList>
 
                 {/* API Keys Tab */}
@@ -439,83 +435,6 @@ const Settings = () => {
                   </Card>
                 </TabsContent>
 
-                {/* Mining Settings Tab */}
-                <TabsContent value="mining" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Zap className="h-5 w-5" />
-                        Mining & Automation Settings
-                      </CardTitle>
-                      <CardDescription>
-                        Configure automated lead mining and enrichment preferences
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-2">
-                          <Label htmlFor="dailyLimit">Daily Mining Limit</Label>
-                          <Input
-                            id="dailyLimit"
-                            type="number"
-                            min="1"
-                            max="1000"
-                            value={miningSettings.dailyLimit}
-                            onChange={(e) => setMiningSettings(prev => ({
-                              ...prev,
-                              dailyLimit: parseInt(e.target.value) || 100
-                            }))}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Maximum leads to process per day
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="autoApprovalThreshold">Auto-Approval Threshold</Label>
-                          <Input
-                            id="autoApprovalThreshold"
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={miningSettings.autoApprovalThreshold}
-                            onChange={(e) => setMiningSettings(prev => ({
-                              ...prev,
-                              autoApprovalThreshold: parseInt(e.target.value) || 70
-                            }))}
-                          />
-                          <p className="text-xs text-muted-foreground">
-                            Minimum score for automatic approval
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                           <Label htmlFor="frequency">Mining Frequency</Label>
-                           <Select 
-                             value={miningSettings.frequency} 
-                             onValueChange={(value) => setMiningSettings(prev => ({
-                               ...prev,
-                               frequency: value
-                             }))}
-                           >
-                             <SelectTrigger>
-                               <SelectValue placeholder="Select frequency" />
-                             </SelectTrigger>
-                             <SelectContent>
-                               <SelectItem value="hourly">Hourly</SelectItem>
-                               <SelectItem value="daily">Daily</SelectItem>
-                               <SelectItem value="weekly">Weekly</SelectItem>
-                               <SelectItem value="monthly">Monthly</SelectItem>
-                             </SelectContent>
-                           </Select>
-                            <p className="text-xs text-muted-foreground">
-                              How often to run automated mining
-                            </p>
-                          </div>
-                        </div>
-                     </CardContent>
-                   </Card>
-                 </TabsContent>
               </Tabs>
 
               <div className="flex justify-end">
