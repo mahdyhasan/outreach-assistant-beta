@@ -204,64 +204,82 @@ const Settings = () => {
 
                           {/* Zoho Email specific fields */}
                           {api.id === 'zoho-email' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                              <div className="space-y-2">
-                                <Label htmlFor={`email-host-${api.id}`}>SMTP Host</Label>
-                                <Input
-                                  id={`email-host-${api.id}`}
-                                  value={api.emailHost || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'emailHost', e.target.value)}
-                                  placeholder="smtp.zoho.com"
-                                />
+                            <>
+                              <div className="bg-muted p-4 rounded-lg mb-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Mail className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm font-medium">Zoho Mail Configuration</span>
+                                </div>
+                                <p className="text-sm text-muted-foreground mb-2">
+                                  Configure your Zoho Mail SMTP and IMAP settings for email automation.
+                                </p>
+                                <div className="text-xs text-muted-foreground space-y-1">
+                                  <div>• SMTP Host: Usually smtp.zoho.com (Port 587)</div>
+                                  <div>• IMAP Host: Usually imap.zoho.com (Port 993)</div>
+                                  <div>• Use your full email address as username</div>
+                                  <div>• Use your email password or app-specific password</div>
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`email-username-${api.id}`}>Email Username</Label>
-                                <Input
-                                  id={`email-username-${api.id}`}
-                                  value={api.emailUsername || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'emailUsername', e.target.value)}
-                                  placeholder="your@domain.com"
-                                />
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                  <Label htmlFor={`email-host-${api.id}`}>SMTP Host</Label>
+                                  <Input
+                                    id={`email-host-${api.id}`}
+                                    value={api.emailHost || "smtp.zoho.com"}
+                                    onChange={(e) => updateApiKey(api.id, 'emailHost', e.target.value)}
+                                    placeholder="smtp.zoho.com"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`email-username-${api.id}`}>Email Username</Label>
+                                  <Input
+                                    id={`email-username-${api.id}`}
+                                    value={api.emailUsername || ""}
+                                    onChange={(e) => updateApiKey(api.id, 'emailUsername', e.target.value)}
+                                    placeholder="your@domain.com"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`email-password-${api.id}`}>Email Password</Label>
+                                  <Input
+                                    id={`email-password-${api.id}`}
+                                    type="password"
+                                    value={api.emailPassword || ""}
+                                    onChange={(e) => updateApiKey(api.id, 'emailPassword', e.target.value)}
+                                    placeholder="Email password or app password"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`imap-host-${api.id}`}>IMAP Host</Label>
+                                  <Input
+                                    id={`imap-host-${api.id}`}
+                                    value={api.imapHost || "imap.zoho.com"}
+                                    onChange={(e) => updateApiKey(api.id, 'imapHost', e.target.value)}
+                                    placeholder="imap.zoho.com"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`imap-username-${api.id}`}>IMAP Username</Label>
+                                  <Input
+                                    id={`imap-username-${api.id}`}
+                                    value={api.imapUsername || ""}
+                                    onChange={(e) => updateApiKey(api.id, 'imapUsername', e.target.value)}
+                                    placeholder="your@domain.com"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <Label htmlFor={`imap-password-${api.id}`}>IMAP Password</Label>
+                                  <Input
+                                    id={`imap-password-${api.id}`}
+                                    type="password"
+                                    value={api.imapPassword || ""}
+                                    onChange={(e) => updateApiKey(api.id, 'imapPassword', e.target.value)}
+                                    placeholder="IMAP password"
+                                  />
+                                </div>
                               </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`email-password-${api.id}`}>Email Password</Label>
-                                <Input
-                                  id={`email-password-${api.id}`}
-                                  type="password"
-                                  value={api.emailPassword || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'emailPassword', e.target.value)}
-                                  placeholder="Email password"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`imap-host-${api.id}`}>IMAP Host</Label>
-                                <Input
-                                  id={`imap-host-${api.id}`}
-                                  value={api.imapHost || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'imapHost', e.target.value)}
-                                  placeholder="imap.zoho.com"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`imap-username-${api.id}`}>IMAP Username</Label>
-                                <Input
-                                  id={`imap-username-${api.id}`}
-                                  value={api.imapUsername || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'imapUsername', e.target.value)}
-                                  placeholder="your@domain.com"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`imap-password-${api.id}`}>IMAP Password</Label>
-                                <Input
-                                  id={`imap-password-${api.id}`}
-                                  type="password"
-                                  value={api.imapPassword || ""}
-                                  onChange={(e) => updateApiKey(api.id, 'imapPassword', e.target.value)}
-                                  placeholder="IMAP password"
-                                />
-                              </div>
-                            </div>
+                            </>
                           )}
                         </div>
                       ))}

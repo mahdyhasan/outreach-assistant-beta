@@ -30,10 +30,11 @@ import { useEmailCampaigns } from "@/hooks/use-email-campaigns";
 import { EmailTemplateDialog } from "@/components/email-campaigns/EmailTemplateDialog";
 import { CampaignDialog } from "@/components/email-campaigns/CampaignDialog";
 import { CampaignSetupDialog } from "@/components/email-campaigns/CampaignSetupDialog";
+import { CampaignExecutor } from "@/components/email-campaigns/CampaignExecutor";
 
 const EmailCampaigns = () => {
   const { templates, loading: templatesLoading, createTemplate, updateTemplate, deleteTemplate } = useEmailTemplates();
-  const { campaigns, loading: campaignsLoading, createCampaign, updateCampaign, deleteCampaign } = useEmailCampaigns();
+  const { campaigns, loading: campaignsLoading, createCampaign, updateCampaign, deleteCampaign, refetch } = useEmailCampaigns();
   const { toast } = useToast();
   
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
@@ -337,6 +338,16 @@ const EmailCampaigns = () => {
                               )}
                             </div>
                           </CardContent>
+                          
+                          {/* Show Campaign Executor for active/paused campaigns */}
+                          {(campaign.status === 'active' || campaign.status === 'paused') && (
+                            <CardContent className="pt-0">
+                              <CampaignExecutor 
+                                campaign={campaign} 
+                                onCampaignUpdate={refetch}
+                              />
+                            </CardContent>
+                          )}
                         </Card>
                       ))}
                     </div>
@@ -445,19 +456,63 @@ const EmailCampaigns = () => {
         open={campaignSetupDialogOpen}
         onOpenChange={setCampaignSetupDialogOpen}
         onSave={async (campaignData) => {
-          // Create campaign with steps and queue emails
-          const campaign = await createCampaign({
-            name: campaignData.name,
-            description: campaignData.description,
-            status: campaignData.status,
-            schedule_time: null
-          });
-          
-          // TODO: Create campaign steps and email queue entries
-          toast({
-            title: "Success",
-            description: "Campaign created with recipients and templates"
-          });
+          try {
+            // Create the main campaign
+            const campaign = await createCampaign({
+              name: campaignData.name,
+              description: campaignData.description,
+              status: campaignData.status,
+              schedule_time: null
+            });
+
+            // Create campaign steps
+            for (const step of campaignData.steps) {
+              await supabase
+                .from('email_campaign_steps')
+                .insert({
+                  campaign_id: campaign.id,
+                  template_id: step.template_id,
+                  step_order: step.step_order,
+                  delay_days: step.delay_days,
+                  channel: 'email'
+                });
+            }
+
+            // Create email queue entries for each recipient and each step
+            const currentTime = new Date();
+            for (const recipientId of campaignData.recipients) {
+              for (const step of campaignData.steps) {
+                const scheduledTime = new Date(currentTime);
+                scheduledTime.setDate(scheduledTime.getDate() + step.delay_days);
+
+                await supabase
+                  .from('email_queue')
+                  .insert({
+                    campaign_id: campaign.id,
+                    decision_maker_id: recipientId,
+                    template_id: step.template_id,
+                    scheduled_time: scheduledTime.toISOString(),
+                    status: 'pending'
+                  });
+              }
+            }
+
+            toast({
+              title: "Success",
+              description: `Campaign "${campaignData.name}" created with ${campaignData.recipients.length} recipients and ${campaignData.steps.length} email steps`,
+            });
+
+            // Refresh campaigns list
+            refetch();
+            
+          } catch (error) {
+            console.error('Error creating campaign:', error);
+            toast({
+              title: "Error",
+              description: "Failed to create campaign with all components",
+              variant: "destructive",
+            });
+          }
         }}
       />
     </SidebarProvider>
