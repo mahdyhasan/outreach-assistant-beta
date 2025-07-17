@@ -11,10 +11,17 @@ interface KDMRequest {
   companyId: string;
 }
 
+// Prioritized list of titles to search in order
 const KDM_TITLES = [
-  'CEO', 'Chief Executive Officer',
-  'COO', 'Chief Operating Officer', 'Director of Operations', 'Head of Operations',
-  'HRO', 'CHRO', 'Chief Human Resources Officer', 'Director of Human Resources', 'Head of Human Resources', 'VP of Human Resources'
+  "CEO",
+  "COO", 
+  "Chief People Officer",
+  "Director of Operations",
+  "Human Resources Director",
+  "Head of Operations",
+  "Head of HR",
+  "HR Manager",
+  "Operations Manager"
 ];
 
 serve(async (req) => {
@@ -64,24 +71,34 @@ serve(async (req) => {
 
     console.log('Discovering KDMs for company:', company.company_name, 'Score:', company.ai_score);
 
-    const foundKDMs: any[] = [];
+    const selectedKDMs: any[] = [];
+    const titlesSearched: string[] = [];
+    const skippedDueToDuplication: string[] = [];
 
-    // Search for each KDM title type
+    // Get existing KDMs for this company to check for duplicates
+    const { data: existingKDMs } = await supabase
+      .from('decision_makers')
+      .select('email, linkedin_profile')
+      .eq('company_id', companyId);
+
+    const existingEmails = new Set(existingKDMs?.map(kdm => kdm.email).filter(Boolean) || []);
+    const existingLinkedins = new Set(existingKDMs?.map(kdm => kdm.linkedin_profile).filter(Boolean) || []);
+
+    // Loop through each title in prioritized order
     for (const title of KDM_TITLES) {
+      if (selectedKDMs.length >= 2) {
+        break; // Stop once we have 2 KDMs
+      }
+
+      titlesSearched.push(title);
+      
       try {
         const searchBody = {
-          api_key: apolloApiKey,
-          q_person_title: title,
-          organization_ids: company.enrichment_data?.apollo_id ? [company.enrichment_data.apollo_id] : undefined,
-          q_organization_domain: company.website ? company.website.replace(/^https?:\/\//, '').replace(/\/$/, '') : undefined,
+          q_organization_names: [company.company_name],
+          person_titles: [title],
           page: 1,
-          per_page: 3 // Limit to avoid hitting rate limits
+          per_page: 5
         };
-
-        // Remove undefined fields
-        Object.keys(searchBody).forEach(key => 
-          searchBody[key as keyof typeof searchBody] === undefined && delete searchBody[key as keyof typeof searchBody]
-        );
 
         console.log('Apollo people search for', title, ':', searchBody);
 
@@ -89,7 +106,8 @@ serve(async (req) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache',
+            'X-Api-Key': apolloApiKey
           },
           body: JSON.stringify(searchBody)
         });
@@ -98,24 +116,37 @@ serve(async (req) => {
           const apolloData = await apolloResponse.json();
           
           if (apolloData.people && apolloData.people.length > 0) {
-            for (const person of apolloData.people.slice(0, 2)) { // Max 2 per title
-              const contactType = title.includes('CEO') ? 'ceo' :
-                                title.includes('COO') || title.includes('Operations') ? 'coo' :
-                                title.includes('HR') ? 'hro' : 'kdm';
+            // Check each person returned
+            for (const person of apolloData.people) {
+              // Check for duplicates
+              const isDuplicateEmail = person.email && existingEmails.has(person.email);
+              const isDuplicateLinkedin = person.linkedin_url && existingLinkedins.has(person.linkedin_url);
+              
+              if (isDuplicateEmail || isDuplicateLinkedin) {
+                skippedDueToDuplication.push(`${person.first_name} ${person.last_name} (${title})`);
+                continue;
+              }
 
+              // Add valid KDM
               const kdm = {
                 company_id: companyId,
-                name: `${person.first_name} ${person.last_name}`,
+                first_name: person.first_name || '',
+                last_name: person.last_name || '',
                 designation: person.title || title,
                 email: person.email,
-                phone: person.phone_numbers?.[0]?.sanitized_number,
                 linkedin_profile: person.linkedin_url,
-                facebook_profile: person.facebook_url,
-                instagram_profile: '', // Apollo doesn't provide Instagram
-                contact_type: contactType
+                contact_type: 'kdm',
+                confidence_score: 85
               };
 
-              foundKDMs.push(kdm);
+              selectedKDMs.push(kdm);
+              
+              // Add to existing sets to prevent duplicates in same search
+              if (person.email) existingEmails.add(person.email);
+              if (person.linkedin_url) existingLinkedins.add(person.linkedin_url);
+              
+              console.log(`Added KDM: ${person.first_name} ${person.last_name} (${title})`);
+              break; // Stop checking this title once a valid KDM is added
             }
           }
         } else {
@@ -123,30 +154,18 @@ serve(async (req) => {
         }
 
         // Small delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise(resolve => setTimeout(resolve, 300));
 
       } catch (error) {
         console.error(`KDM search failed for title ${title}:`, error);
       }
     }
 
-    // Insert found KDMs
-    if (foundKDMs.length > 0) {
+    // Insert selected KDMs
+    if (selectedKDMs.length > 0) {
       const { data: insertedKDMs, error: insertError } = await supabase
         .from('decision_makers')
-        .insert(foundKDMs.map(kdm => ({
-          company_id: kdm.company_id,
-          first_name: kdm.name.split(' ')[0],
-          last_name: kdm.name.split(' ').slice(1).join(' '),
-          designation: kdm.designation,
-          email: kdm.email,
-          phone: kdm.phone,
-          linkedin_profile: kdm.linkedin_profile,
-          facebook_profile: kdm.facebook_profile,
-          instagram_profile: kdm.instagram_profile,
-          contact_type: kdm.contact_type,
-          confidence_score: 85
-        })))
+        .insert(selectedKDMs)
         .select();
 
       if (insertError) {
@@ -158,10 +177,15 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({
         success: true,
-        kdms: insertedKDMs,
-        kdms_found: insertedKDMs?.length || 0,
+        kdms_saved: insertedKDMs?.length || 0,
+        kdms: insertedKDMs?.map(kdm => ({
+          name: `${kdm.first_name} ${kdm.last_name}`,
+          title: kdm.designation
+        })) || [],
+        titles_searched: titlesSearched,
+        skipped_due_to_duplication: skippedDueToDuplication,
         company_name: company.company_name,
-        message: `Found ${insertedKDMs?.length || 0} key decision makers`
+        message: `Found and saved ${insertedKDMs?.length || 0} key decision makers`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -169,10 +193,12 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({
       success: true,
+      kdms_saved: 0,
       kdms: [],
-      kdms_found: 0,
+      titles_searched: titlesSearched,
+      skipped_due_to_duplication: skippedDueToDuplication,
       company_name: company.company_name,
-      message: 'No KDMs found for this company'
+      message: 'No new KDMs found for this company'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
