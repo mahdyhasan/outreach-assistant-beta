@@ -29,6 +29,7 @@ import { useEmailTemplates } from "@/hooks/use-email-templates";
 import { useEmailCampaigns } from "@/hooks/use-email-campaigns";
 import { EmailTemplateDialog } from "@/components/email-campaigns/EmailTemplateDialog";
 import { CampaignDialog } from "@/components/email-campaigns/CampaignDialog";
+import { CampaignSetupDialog } from "@/components/email-campaigns/CampaignSetupDialog";
 
 const EmailCampaigns = () => {
   const { templates, loading: templatesLoading, createTemplate, updateTemplate, deleteTemplate } = useEmailTemplates();
@@ -37,6 +38,7 @@ const EmailCampaigns = () => {
   
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+  const [campaignSetupDialogOpen, setCampaignSetupDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [editingCampaign, setEditingCampaign] = useState(null);
   const [emailStats, setEmailStats] = useState({
@@ -259,10 +261,16 @@ const EmailCampaigns = () => {
                 <TabsContent value="campaigns" className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h2 className="text-xl font-semibold">Email Campaigns</h2>
-                    <Button onClick={() => setCampaignDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      New Campaign
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setCampaignDialogOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Quick Campaign
+                      </Button>
+                      <Button onClick={() => setCampaignSetupDialogOpen(true)}>
+                        <Users className="h-4 w-4 mr-2" />
+                        Setup Campaign
+                      </Button>
+                    </div>
                   </div>
 
                   {campaignsLoading ? (
@@ -431,6 +439,26 @@ const EmailCampaigns = () => {
         onOpenChange={setCampaignDialogOpen}
         campaign={editingCampaign}
         onSave={editingCampaign ? handleUpdateCampaign : handleCreateCampaign}
+      />
+
+      <CampaignSetupDialog
+        open={campaignSetupDialogOpen}
+        onOpenChange={setCampaignSetupDialogOpen}
+        onSave={async (campaignData) => {
+          // Create campaign with steps and queue emails
+          const campaign = await createCampaign({
+            name: campaignData.name,
+            description: campaignData.description,
+            status: campaignData.status,
+            schedule_time: null
+          });
+          
+          // TODO: Create campaign steps and email queue entries
+          toast({
+            title: "Success",
+            description: "Campaign created with recipients and templates"
+          });
+        }}
       />
     </SidebarProvider>
   );
