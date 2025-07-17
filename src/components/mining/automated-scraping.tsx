@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,10 +17,12 @@ interface AutomatedScrapingProps {
 }
 
 export const AutomatedScraping = ({ 
-  dailyScraped, 
-  dailyLimit, 
+  dailyScraped = 0, 
+  dailyLimit = 100, 
   onLeadsFound 
 }: AutomatedScrapingProps) => {
+  console.log('AutomatedScraping rendering with props:', { dailyScraped, dailyLimit });
+  
   const { searchCompanies, loading } = useApolloSearch();
   const [searchParams, setSearchParams] = useState<CompanySearchFilters>({
     query: '',
@@ -34,6 +36,10 @@ export const AutomatedScraping = ({
     companiesAdded: number;
     decisionMakersFound: number;
   } | null>(null);
+
+  useEffect(() => {
+    console.log('AutomatedScraping mounted successfully');
+  }, []);
 
   const handleSearch = async () => {
     if (!searchParams.query.trim()) return;

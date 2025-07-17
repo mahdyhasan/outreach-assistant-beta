@@ -13,6 +13,7 @@ import { Upload, Bot, GitMerge, Settings, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useMiningSettings } from '@/hooks/use-mining-settings';
 import { Loader2 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 const LeadMining = () => {
   const { settings, dailyStats, loading, updateSettings, updateDailyStats } = useMiningSettings();
@@ -113,21 +114,13 @@ const LeadMining = () => {
           </TabsContent>
 
           <TabsContent value="automated" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Automated Lead Scraping</CardTitle>
-                <CardDescription>
-                  Set up automated daily scraping based on your ICP criteria
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-            <AutomatedScraping 
-              dailyScraped={dailyScrapedToday}
-              dailyLimit={dailyLimit}
-              onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })}
-            />
-              </CardContent>
-            </Card>
+            <ErrorBoundary>
+              <AutomatedScraping 
+                dailyScraped={dailyScrapedToday}
+                dailyLimit={dailyLimit}
+                onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })}
+              />
+            </ErrorBoundary>
           </TabsContent>
 
           <TabsContent value="hybrid" className="space-y-6">
