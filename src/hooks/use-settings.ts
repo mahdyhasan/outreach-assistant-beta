@@ -49,7 +49,15 @@ interface MiningSettings {
 export function useSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
+  
+  // Initialize with default API keys
+  const [apiKeys, setApiKeys] = useState<APIKey[]>([
+    { id: 'apollo', name: 'Apollo', key: '', description: 'Lead discovery and company data', isActive: false },
+    { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered email generation', isActive: false },
+    { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data enrichment', isActive: false },
+    { id: 'zoho-email', name: 'Zoho Email', key: '', description: 'Email automation platform', isActive: false }
+  ]);
+  
   const [scoringWeights, setScoringWeights] = useState<ScoringWeights>({
     companySize: 30,
     techStack: 25,
@@ -112,6 +120,9 @@ Always use the contact's first name in greeting.`,
           const apiKeysData = userSettings.api_keys as Record<string, any>;
           const apiKeysArray = Object.values(apiKeysData) as APIKey[];
           setApiKeys(apiKeysArray);
+        } else {
+          // If no API keys in database, keep default ones
+          console.log('No API keys found in database, using defaults');
         }
 
         // Parse scoring weights
@@ -192,18 +203,19 @@ Always use the contact's first name in greeting.`,
         }]);
 
       if (error) {
+        console.error('Supabase upsert error:', error);
         toast({
           title: "Error",
           description: "Failed to save settings",
           variant: "destructive",
         });
         throw error;
-      } else {
-        toast({
-          title: "Success",
-          description: "Settings saved successfully",
-        });
       }
+      
+      toast({
+        title: "Success", 
+        description: "Settings saved successfully",
+      });
     } catch (error) {
       console.error('Error saving settings:', error);
       throw error;
