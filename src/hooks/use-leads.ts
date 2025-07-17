@@ -1,115 +1,65 @@
 import { useState, useEffect } from 'react';
 import { Lead, LeadFilters } from '@/types/lead';
-
-// Mock data for prototype
-const mockLeads: Lead[] = [
-  {
-    id: '1',
-    companyName: 'TechCorp Solutions',
-    contactName: 'John Smith',
-    email: 'j.smith@techcorp.com',
-    linkedinUrl: 'https://linkedin.com/in/johnsmith',
-    phone: '+1-555-0123',
-    jobTitle: 'VP of Sales',
-    companySize: '50-200',
-    industry: 'Software',
-    location: 'San Francisco, CA',
-    website: 'https://techcorp.com',
-    aiScore: 85,
-    finalScore: 85,
-    scoreReason: ['High growth company', 'Recent funding round', 'Active hiring'],
-    status: 'new',
-    priority: 'immediate',
-    enrichmentData: {
-      fundingRounds: ['Series B - $15M'],
-      techStack: ['React', 'Node.js', 'PostgreSQL'],
-      recentNews: ['Announced new product line', 'Expanded to European market'],
-      companyGrowthRate: '150% YoY',
-      jobPostings: 12
-    },
-    outreachHistory: [],
-    followupCount: 0,
-    source: 'linkedin',
-    createdAt: new Date('2024-01-15'),
-    updatedAt: new Date('2024-01-15')
-  },
-  {
-    id: '2',
-    companyName: 'StartupXYZ',
-    contactName: 'Sarah Johnson',
-    email: 's.johnson@startupxyz.com',
-    jobTitle: 'Head of Marketing',
-    companySize: '10-50',
-    industry: 'Marketing',
-    location: 'Austin, TX',
-    aiScore: 92,
-    humanScore: 65,
-    finalScore: 65,
-    scoreReason: ['Early stage startup', 'Limited budget', 'High potential'],
-    status: 'in_progress',
-    priority: 'queue',
-    enrichmentData: {
-      fundingRounds: ['Seed - $2M'],
-      recentNews: ['Featured in TechCrunch'],
-      companyGrowthRate: '200% YoY',
-      jobPostings: 3
-    },
-    outreachHistory: [
-      {
-        id: 'out1',
-        type: 'email',
-        status: 'sent',
-        subject: 'Partnership Opportunity',
-        message: 'Hi Sarah, I noticed your company...',
-        sentAt: new Date('2024-01-10')
-      }
-    ],
-    followupCount: 1,
-    lastContactDate: new Date('2024-01-10'),
-    nextFollowupDate: new Date('2024-01-17'),
-    humanFeedback: {
-      originalScore: 92,
-      correctedScore: 65,
-      reason: 'Company too early stage, limited budget despite growth',
-      correctedBy: 'Sales Manager',
-      correctedAt: new Date('2024-01-12')
-    },
-    source: 'clay',
-    createdAt: new Date('2024-01-08'),
-    updatedAt: new Date('2024-01-12')
-  },
-  {
-    id: '3',
-    companyName: 'Enterprise Corp',
-    contactName: 'Michael Brown',
-    email: 'm.brown@enterprise.com',
-    jobTitle: 'CTO',
-    companySize: '1000+',
-    industry: 'Finance',
-    location: 'New York, NY',
-    aiScore: 45,
-    finalScore: 45,
-    scoreReason: ['Large company', 'Slow decision making', 'Conservative approach'],
-    status: 'nurture',
-    priority: 'nurture',
-    enrichmentData: {
-      techStack: ['Java', '.NET', 'Oracle'],
-      recentNews: ['Quarterly earnings beat expectations'],
-      companyGrowthRate: '5% YoY',
-      jobPostings: 25
-    },
-    outreachHistory: [],
-    followupCount: 0,
-    source: 'apollo',
-    createdAt: new Date('2024-01-14'),
-    updatedAt: new Date('2024-01-14')
-  }
-];
+import { supabase } from '@/integrations/supabase/client';
 
 export const useLeads = () => {
-  const [leads, setLeads] = useState<Lead[]>(mockLeads);
-  const [loading, setLoading] = useState(false);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<LeadFilters>({});
+
+  useEffect(() => {
+    fetchLeads();
+  }, []);
+
+  const fetchLeads = async () => {
+    try {
+      setLoading(true);
+      const { data: companies, error } = await supabase
+        .from('companies')
+        .select(`
+          *,
+          decision_makers (*)
+        `);
+
+      if (error) throw error;
+
+      // Transform database data to Lead format
+      const transformedLeads: Lead[] = companies?.flatMap(company => 
+        company.decision_makers?.map(dm => ({
+          id: `${company.id}-${dm.id}`,
+          companyName: company.company_name,
+          contactName: `${dm.first_name} ${dm.last_name}`,
+          email: dm.email || '',
+          linkedinUrl: dm.linkedin_profile || '',
+          phone: dm.phone || '',
+          jobTitle: dm.designation,
+          companySize: company.employee_size || '',
+          industry: company.industry || '',
+          website: company.website || '',
+          location: company.location || '',
+          aiScore: company.ai_score || 0,
+          humanScore: 0, // Default value
+          finalScore: company.ai_score || 0,
+          priority: company.ai_score > 70 ? 'immediate' : company.ai_score > 40 ? 'queue' : 'nurture',
+          status: company.status === 'approved' ? 'new' : company.status === 'enriched' ? 'qualified' : 'new',
+          scoreReason: [],
+          enrichmentData: (company.enrichment_data as Lead['enrichmentData']) || {},
+          outreachHistory: [],
+          followupCount: 0,
+          responseTag: undefined,
+          source: (company.source as Lead['source']) || 'manual',
+          createdAt: new Date(company.created_at),
+          updatedAt: new Date(company.updated_at)
+        })) || []
+      ) || [];
+
+      setLeads(transformedLeads);
+    } catch (error) {
+      console.error('Error fetching leads:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredLeads = leads.filter(lead => {
     // Search filter

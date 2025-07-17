@@ -16,8 +16,8 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/dashboard/AppSidebar";
 import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { toast } from "sonner";
-import { mockCompaniesWithDecisionMakers } from "@/data/mockData";
-import { CompanyWithDecisionMakers } from "@/types/prototype";
+import { supabase } from "@/integrations/supabase/client";
+import { useEffect, useState as useStateReact } from "react";
 
 interface ExportCompany {
   id: string;
@@ -40,24 +40,51 @@ const ExportLeads = () => {
   const [filterIndustry, setFilterIndustry] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
   const [exportFormat, setExportFormat] = useState<string>('csv');
+  const [exportData, setExportData] = useState<ExportCompany[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Transform mock data into export format
-  const exportData: ExportCompany[] = mockCompaniesWithDecisionMakers.flatMap(company => 
-    company.decision_makers.map(dm => ({
-      id: `${company.id}-${dm.id}`,
-      company_name: company.company_name,
-      decision_maker_name: dm.full_name,
-      decision_maker_email: dm.email || 'N/A',
-      job_title: dm.job_title,
-      company_size: company.employee_size || 'Unknown',
-      industry: company.industry || 'Unknown',
-      website: company.website || 'N/A',
-      ai_score: company.ai_score,
-      status: company.status,
-      source: company.source,
-      created_at: company.created_at
-    }))
-  );
+  useEffect(() => {
+    fetchExportData();
+  }, []);
+
+  const fetchExportData = async () => {
+    try {
+      setLoading(true);
+      const { data: companies, error } = await supabase
+        .from('companies')
+        .select(`
+          *,
+          decision_makers (*)
+        `);
+
+      if (error) throw error;
+
+      // Transform database data into export format
+      const transformedData: ExportCompany[] = companies?.flatMap(company => 
+        company.decision_makers?.map(dm => ({
+          id: `${company.id}-${dm.id}`,
+          company_name: company.company_name,
+          decision_maker_name: `${dm.first_name} ${dm.last_name}`,
+          decision_maker_email: dm.email || 'N/A',
+          job_title: dm.designation,
+          company_size: company.employee_size || 'Unknown',
+          industry: company.industry || 'Unknown',
+          website: company.website || 'N/A',
+          ai_score: company.ai_score || 0,
+          status: company.status || 'pending_review',
+          source: company.source || 'manual',
+          created_at: company.created_at
+        })) || []
+      ) || [];
+
+      setExportData(transformedData);
+    } catch (error) {
+      console.error('Error fetching export data:', error);
+      toast.error('Failed to load export data');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Apply filters
   const filteredData = exportData.filter(item => {

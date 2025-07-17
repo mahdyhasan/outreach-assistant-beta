@@ -57,10 +57,10 @@ export function useDashboardStats() {
         activeSignals: activeSignals || 0,
         responseRate: `${responseRate}%`,
         companyChanges: {
-          totalCompanies: "+180 from last month",
+          totalCompanies: `${totalCompanies || 0} total companies`,
           highQualityCompanies: `${highQualityPercentage}% of total companies`,
-          activeSignals: "Active signals",
-          responseRate: "+2.1% from last week",
+          activeSignals: `${activeSignals || 0} unprocessed signals`,
+          responseRate: `${responseRate}% qualification rate`,
         },
       };
     },
