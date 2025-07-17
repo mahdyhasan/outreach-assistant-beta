@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { SidebarProvider } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/dashboard/AppSidebar";
+import { DashboardHeader } from "@/components/dashboard/DashboardHeader";
 import { ManualImport } from '@/components/mining/manual-import';
 import { AutomatedScraping } from '@/components/mining/automated-scraping';
 import { HybridMining } from '@/components/mining/hybrid-mining';
@@ -15,39 +18,44 @@ const LeadMining = () => {
   const [dailyLimit, setDailyLimit] = useState(100);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card">
-        <div className="container mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                <Bot className="h-8 w-8 text-primary" />
-                Lead Mining Hub
-              </h1>
-              <p className="text-muted-foreground mt-2">
-                Import, scrape, and enrich leads automatically
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <div className="text-sm text-muted-foreground">Today's Progress</div>
-                <div className="font-semibold">
-                  {dailyScrapedToday} / {dailyLimit} leads
+    <SidebarProvider>
+      <div className="min-h-screen flex w-full bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col">
+          <DashboardHeader />
+          <main className="flex-1 p-6">
+            {/* Header */}
+            <div className="border-b bg-card mb-6">
+              <div className="px-6 py-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold flex items-center gap-3">
+                      <Bot className="h-8 w-8 text-primary" />
+                      Lead Mining Hub
+                    </h1>
+                    <p className="text-muted-foreground mt-2">
+                      Import, scrape, and enrich leads automatically
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <div className="text-sm text-muted-foreground">Today's Progress</div>
+                      <div className="font-semibold">
+                        {dailyScrapedToday} / {dailyLimit} leads
+                      </div>
+                    </div>
+                    {pendingCompanies > 0 && (
+                      <Badge variant="destructive" className="animate-pulse">
+                        {pendingCompanies} pending review
+                      </Badge>
+                    )}
+                  </div>
                 </div>
               </div>
-              {pendingCompanies > 0 && (
-                <Badge variant="destructive" className="animate-pulse">
-                  {pendingCompanies} pending review
-                </Badge>
-              )}
             </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="container mx-auto px-6 py-6">
-        <Tabs defaultValue="manual" className="space-y-6">
+            <div className="px-6">
+              <Tabs defaultValue="manual" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <Upload className="h-4 w-4" />
@@ -155,9 +163,12 @@ const LeadMining = () => {
               </CardContent>
             </Card>
           </TabsContent>
-        </Tabs>
+              </Tabs>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </SidebarProvider>
   );
 };
 
