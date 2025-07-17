@@ -30,15 +30,34 @@ serve(async (req) => {
       throw new Error('Apollo API key not configured');
     }
 
-    const { query, industry, location, size, limit = 20, linkedin_query } = await req.json() as CompanySearchRequest;
-
-    console.log('Searching companies with criteria:', { query, industry, location, size, limit, linkedin_query });
-
     // Initialize Supabase client
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Get the authorization header and verify the user
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: 'Authorization header required' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser(authHeader.replace('Bearer ', ''));
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    const userId = user.id;
+
+    const { query, industry, location, size, limit = 20, linkedin_query } = await req.json() as CompanySearchRequest;
+
+    console.log('Searching companies with criteria:', { query, industry, location, size, limit, linkedin_query });
 
     let companies: any[] = [];
 
@@ -81,6 +100,7 @@ serve(async (req) => {
             public_email: '',
             public_phone: org.phone,
             linkedin_profile: org.linkedin_url,
+            user_id: userId,
             enrichment_data: {
               apollo_id: org.id,
               logo_url: org.logo_url,
@@ -133,6 +153,7 @@ serve(async (req) => {
                 public_email: '',
                 public_phone: '',
                 linkedin_profile: result.link,
+                user_id: userId,
                 enrichment_data: {
                   found_via: 'linkedin_search',
                   search_snippet: result.snippet
