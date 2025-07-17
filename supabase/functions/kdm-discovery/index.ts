@@ -133,8 +133,20 @@ serve(async (req) => {
     // Insert found KDMs
     if (foundKDMs.length > 0) {
       const { data: insertedKDMs, error: insertError } = await supabase
-        .from('contacts')
-        .insert(foundKDMs)
+        .from('decision_makers')
+        .insert(foundKDMs.map(kdm => ({
+          company_id: kdm.company_id,
+          first_name: kdm.name.split(' ')[0],
+          last_name: kdm.name.split(' ').slice(1).join(' '),
+          designation: kdm.designation,
+          email: kdm.email,
+          phone: kdm.phone,
+          linkedin_profile: kdm.linkedin_profile,
+          facebook_profile: kdm.facebook_profile,
+          instagram_profile: kdm.instagram_profile,
+          contact_type: kdm.contact_type,
+          confidence_score: 85
+        })))
         .select();
 
       if (insertError) {

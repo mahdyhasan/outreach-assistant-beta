@@ -163,15 +163,41 @@ Respond with a JSON object: {"score": 0-100, "reasoning": "explanation", "signal
 
         if (gptResponse.ok) {
           const gptData = await gptResponse.json();
-          const analysis = JSON.parse(gptData.choices[0].message.content);
+          let content = gptData.choices[0].message.content;
           
-          aiScore = analysis.score;
-          enrichmentData.ai_analysis = {
-            score: analysis.score,
-            reasoning: analysis.reasoning,
-            signals: analysis.signals,
-            analyzed_at: new Date().toISOString()
-          };
+          // Clean up the response to extract JSON only
+          if (content.includes('```json')) {
+            content = content.split('```json')[1].split('```')[0];
+          } else if (content.includes('```')) {
+            content = content.split('```')[1];
+          }
+          
+          try {
+            const analysis = JSON.parse(content.trim());
+            aiScore = analysis.score;
+            enrichmentData.ai_analysis = {
+              score: analysis.score,
+              reasoning: analysis.reasoning,
+              signals: analysis.signals,
+              analyzed_at: new Date().toISOString()
+            };
+
+            // Create signals from AI analysis
+            if (analysis.signals && analysis.signals.length > 0) {
+              for (const signal of analysis.signals) {
+                await supabase.from('signals').insert({
+                  company_id: company_id,
+                  signal_type: 'growth',
+                  signal_title: `AI Detected: ${signal}`,
+                  signal_description: `AI analysis identified this as a key growth indicator for ${company.company_name}`,
+                  priority: analysis.score >= 80 ? 'high' : analysis.score >= 60 ? 'medium' : 'low',
+                  processed: false
+                });
+              }
+            }
+          } catch (parseError) {
+            console.error('Failed to parse ChatGPT response:', parseError, 'Raw content:', content);
+          }
         }
       } catch (error) {
         console.error('ChatGPT analysis failed:', error);

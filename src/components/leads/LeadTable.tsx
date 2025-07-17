@@ -17,21 +17,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, TrendingUp, Zap, Sparkles, BarChart3 } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, TrendingUp, Zap, Sparkles, BarChart3, Users, TrendingUp as SignalIcon } from "lucide-react";
 import { CompanyLead } from "@/hooks/use-supabase-leads";
 import { useCompanyEnrichment } from "@/hooks/use-company-enrichment";
 import { useLeadScoring } from "@/hooks/use-lead-scoring";
 import { useEmailQueue } from "@/hooks/use-email-queue";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface LeadTableProps {
   leads: CompanyLead[];
   onAction: (type: 'details' | 'edit' | 'enrich' | 'score', lead: CompanyLead) => void;
+  onRefresh?: () => void;
 }
 
-export function LeadTable({ leads, onAction }: LeadTableProps) {
+export function LeadTable({ leads, onAction, onRefresh }: LeadTableProps) {
   const { enrichCompany, loading: enrichmentLoading } = useCompanyEnrichment();
   const { scoreCompany, loading: scoringLoading } = useLeadScoring();
   const [processingLeads, setProcessingLeads] = useState(new Set<string>());
+  const { toast } = useToast();
 
   const handleEnrichLead = async (lead: CompanyLead) => {
     setProcessingLeads(prev => new Set(prev).add(lead.id));
@@ -52,6 +56,66 @@ export function LeadTable({ leads, onAction }: LeadTableProps) {
     try {
       await scoreCompany(lead.id);
       onAction('score', lead);
+    } finally {
+      setProcessingLeads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(lead.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleDiscoverKDMs = async (lead: CompanyLead) => {
+    setProcessingLeads(prev => new Set(prev).add(lead.id));
+    try {
+      const { data, error } = await supabase.functions.invoke('kdm-discovery', {
+        body: { companyId: lead.id },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "KDM Discovery Complete",
+        description: data.message || `Found ${data.kdms_found || 0} key decision makers`,
+      });
+
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      toast({
+        title: "KDM Discovery Failed",
+        description: error.message || "Failed to discover key decision makers",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingLeads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(lead.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleGenerateSignals = async (lead: CompanyLead) => {
+    setProcessingLeads(prev => new Set(prev).add(lead.id));
+    try {
+      const { data, error } = await supabase.functions.invoke('signal-generation', {
+        body: { company_id: lead.id },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Signal Generation Complete",
+        description: data.message || `Generated ${data.signals_found || 0} signals`,
+      });
+
+      if (onRefresh) onRefresh();
+    } catch (error: any) {
+      toast({
+        title: "Signal Generation Failed",
+        description: error.message || "Failed to generate signals",
+        variant: "destructive",
+      });
     } finally {
       setProcessingLeads(prev => {
         const newSet = new Set(prev);
@@ -185,6 +249,21 @@ export function LeadTable({ leads, onAction }: LeadTableProps) {
                       <DropdownMenuItem onClick={() => onAction('score', lead)}>
                         <TrendingUp className="mr-2 h-4 w-4" />
                         Adjust Score
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => handleDiscoverKDMs(lead)}
+                        disabled={processingLeads.has(lead.id)}
+                      >
+                        <Users className="mr-2 h-4 w-4" />
+                        Find KDMs
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleGenerateSignals(lead)}
+                        disabled={processingLeads.has(lead.id)}
+                      >
+                        <SignalIcon className="mr-2 h-4 w-4" />
+                        Generate Signals
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

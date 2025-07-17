@@ -91,7 +91,7 @@ export function LeadManagementContent() {
           <CardDescription>All your mined leads from various sources</CardDescription>
         </CardHeader>
         <CardContent>
-          <LeadTable leads={filteredLeads} onAction={openDialog} />
+          <LeadTable leads={filteredLeads} onAction={openDialog} onRefresh={refetch} />
         </CardContent>
       </Card>
 
