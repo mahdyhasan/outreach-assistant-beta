@@ -45,7 +45,6 @@ serve(async (req) => {
     // Primary search using Apollo
     if (query || industry || location || size) {
       const apolloSearchBody = {
-        api_key: apolloApiKey,
         q_organization_domain_exists: true,
         q_organization_name: query || undefined,
         organization_locations: location ? [location] : undefined,
@@ -61,6 +60,7 @@ serve(async (req) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Api-Key': apolloApiKey,
           'Cache-Control': 'no-cache'
         },
         body: JSON.stringify(apolloSearchBody)
@@ -138,7 +138,7 @@ serve(async (req) => {
                   search_snippet: result.snippet
                 },
                 ai_score: 0,
-                source: 'linkedin_search',
+                source: 'linkedin',
                 status: 'pending_review'
               };
             });
