@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Play, Pause, Settings, Clock, Target } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Separator } from '@/components/ui/separator';
+import { Bot, Search, Settings, Target } from 'lucide-react';
+import { useApolloSearch, CompanySearchFilters } from '@/hooks/use-apollo-search';
 
 interface AutomatedScrapingProps {
   dailyScraped: number;
@@ -21,120 +21,52 @@ export const AutomatedScraping = ({
   dailyLimit, 
   onLeadsFound 
 }: AutomatedScrapingProps) => {
-  const { toast } = useToast();
-  const [isActive, setIsActive] = useState(false);
-  const [frequency, setFrequency] = useState('daily');
-  const [targetIndustry, setTargetIndustry] = useState('tech-startups');
-  const [geography, setGeography] = useState('uk-au');
-  const [isRunning, setIsRunning] = useState(false);
+  const { searchCompanies, loading } = useApolloSearch();
+  const [searchParams, setSearchParams] = useState<CompanySearchFilters>({
+    query: '',
+    location: '',
+    industry: '',
+    size: '',
+    limit: 20,
+  });
+  const [lastSearchResults, setLastSearchResults] = useState<{
+    totalFound: number;
+    companiesAdded: number;
+    decisionMakersFound: number;
+  } | null>(null);
+
+  const handleSearch = async () => {
+    if (!searchParams.query.trim()) return;
+    
+    const results = await searchCompanies(searchParams);
+    
+    if (results.success) {
+      setLastSearchResults({
+        totalFound: results.totalFound,
+        companiesAdded: results.companies.length,
+        decisionMakersFound: results.decisionMakersFound,
+      });
+      onLeadsFound(results.companies.length);
+    }
+  };
 
   const progressPercentage = (dailyScraped / dailyLimit) * 100;
 
-  const handleToggleAutomation = () => {
-    setIsActive(!isActive);
-    toast({
-      title: isActive ? "Automation Disabled" : "Automation Enabled",
-      description: isActive 
-        ? "Automated scraping has been turned off" 
-        : "Automated scraping will start based on your schedule",
-    });
-  };
-
-  const handleManualRun = async () => {
-    if (dailyScraped >= dailyLimit) {
-      toast({
-        title: "Daily Limit Reached",
-        description: "You've reached your daily scraping limit. Try again tomorrow.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsRunning(true);
-    
-    try {
-      // Call our lead scraping edge function with real API integration
-      const { data, error } = await supabase.functions.invoke('lead-scraping', {
-        body: {
-          industry: targetIndustry,
-          geography: geography,
-          limit: Math.min(50, dailyLimit - dailyScraped)
-        }
-      });
-
-      if (error) throw error;
-
-      const newLeads = data?.leads?.length || 0;
-      onLeadsFound(newLeads);
-      
-      toast({
-        title: "Scraping Complete",
-        description: `Found ${newLeads} new leads matching your criteria`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Scraping Failed",
-        description: error.message || "Failed to scrape leads",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRunning(false);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Status Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className={`h-3 w-3 rounded-full ${isActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-              <div>
-                <div className="text-sm text-muted-foreground">Status</div>
-                <div className="font-semibold">{isActive ? 'Active' : 'Inactive'}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Target className="h-5 w-5 text-primary" />
-              <div>
-                <div className="text-sm text-muted-foreground">Daily Progress</div>
-                <div className="font-semibold">{dailyScraped} / {dailyLimit}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-primary" />
-              <div>
-                <div className="text-sm text-muted-foreground">Next Run</div>
-                <div className="font-semibold">
-                  {isActive ? 'Tomorrow 9:00 AM' : 'Not scheduled'}
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Daily Progress */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily Scraping Progress</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Target className="h-5 w-5" />
+            Daily Progress
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span>Progress</span>
-              <span>{dailyScraped} of {dailyLimit} leads</span>
+              <span>Scraped Today</span>
+              <span>{dailyScraped} of {dailyLimit}</span>
             </div>
             <Progress value={progressPercentage} className="w-full" />
             {progressPercentage >= 100 && (
@@ -146,128 +78,146 @@ export const AutomatedScraping = ({
         </CardContent>
       </Card>
 
-      {/* Configuration */}
+      {/* Apollo Company Search */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="h-5 w-5" />
-            Scraping Configuration
+            <Bot className="h-5 w-5" />
+            Company Search
           </CardTitle>
+          <CardDescription>
+            Find companies using Apollo API integration
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="frequency">Frequency</Label>
-              <Select value={frequency} onValueChange={setFrequency}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">Daily</SelectItem>
-                  <SelectItem value="weekly">Weekly</SelectItem>
-                  <SelectItem value="bi-weekly">Bi-weekly</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="industry">Target Industry</Label>
-              <Select value={targetIndustry} onValueChange={setTargetIndustry}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="tech-startups">Tech Startups</SelectItem>
-                  <SelectItem value="saas">SaaS Companies</SelectItem>
-                  <SelectItem value="ecommerce">Ecommerce</SelectItem>
-                  <SelectItem value="agencies">Digital Agencies</SelectItem>
-                  <SelectItem value="funded-scaleups">Funded Scaleups</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="geography">Geography Focus</Label>
-              <Select value={geography} onValueChange={setGeography}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="uk-au">UK + Australia (80%)</SelectItem>
-                  <SelectItem value="singapore-malaysia">Singapore + Malaysia (10%)</SelectItem>
-                  <SelectItem value="western-europe">Western Europe (10%)</SelectItem>
-                  <SelectItem value="all-regions">All Target Regions</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="automation-toggle">Enable Automation</Label>
-                <p className="text-sm text-muted-foreground">
-                  Run scraping automatically based on frequency
-                </p>
-              </div>
-              <Switch 
-                id="automation-toggle"
-                checked={isActive}
-                onCheckedChange={handleToggleAutomation}
+              <Label htmlFor="search-query">Search Query</Label>
+              <Input
+                id="search-query"
+                placeholder="e.g., AI startups, SaaS companies"
+                value={searchParams.query}
+                onChange={(e) => setSearchParams({ ...searchParams, query: e.target.value })}
               />
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Select 
+                value={searchParams.location} 
+                onValueChange={(value) => setSearchParams({ ...searchParams, location: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Any Location</SelectItem>
+                  <SelectItem value="United States">United States</SelectItem>
+                  <SelectItem value="United Kingdom">United Kingdom</SelectItem>
+                  <SelectItem value="Canada">Canada</SelectItem>
+                  <SelectItem value="Australia">Australia</SelectItem>
+                  <SelectItem value="Germany">Germany</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry</Label>
+              <Select 
+                value={searchParams.industry} 
+                onValueChange={(value) => setSearchParams({ ...searchParams, industry: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select industry" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Any Industry</SelectItem>
+                  <SelectItem value="Technology">Technology</SelectItem>
+                  <SelectItem value="SaaS">SaaS</SelectItem>
+                  <SelectItem value="E-commerce">E-commerce</SelectItem>
+                  <SelectItem value="Fintech">Fintech</SelectItem>
+                  <SelectItem value="Healthcare">Healthcare</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="company-size">Company Size</Label>
+              <Select 
+                value={searchParams.size} 
+                onValueChange={(value) => setSearchParams({ ...searchParams, size: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Any Size</SelectItem>
+                  <SelectItem value="1-10">1-10 employees</SelectItem>
+                  <SelectItem value="11-50">11-50 employees</SelectItem>
+                  <SelectItem value="51-200">51-200 employees</SelectItem>
+                  <SelectItem value="201-500">201-500 employees</SelectItem>
+                  <SelectItem value="501+">500+ employees</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Manual Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Manual Controls</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <Button 
-              onClick={handleManualRun}
-              disabled={isRunning || dailyScraped >= dailyLimit}
-              className="flex items-center gap-2"
+          <div className="space-y-2">
+            <Label htmlFor="limit">Search Limit</Label>
+            <Select 
+              value={searchParams.limit?.toString()} 
+              onValueChange={(value) => setSearchParams({ ...searchParams, limit: parseInt(value) })}
             >
-              {isRunning ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Running...
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Run Now
-                </>
-              )}
-            </Button>
-            
-            {dailyScraped >= dailyLimit && (
-              <Badge variant="outline">
-                Daily limit reached
-              </Badge>
-            )}
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 results</SelectItem>
+                <SelectItem value="20">20 results</SelectItem>
+                <SelectItem value="50">50 results</SelectItem>
+                <SelectItem value="100">100 results</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Current Run Status */}
-      {isRunning && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Bot className="h-5 w-5 text-blue-600 animate-pulse" />
-              <div>
-                <div className="font-semibold text-blue-800">Scraping in Progress</div>
-                <div className="text-sm text-blue-600">
-                  Searching for {targetIndustry} companies in {geography} region...
+          <Button 
+            onClick={handleSearch} 
+            disabled={loading || !searchParams.query.trim() || dailyScraped >= dailyLimit} 
+            className="w-full"
+          >
+            <Search className="h-4 w-4 mr-2" />
+            {loading ? 'Searching...' : 'Start Company Search'}
+          </Button>
+
+          {lastSearchResults && (
+            <div className="mt-6 p-4 bg-muted rounded-lg">
+              <h4 className="font-medium mb-2">Last Search Results</h4>
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">Total Found:</span>
+                  <br />
+                  <Badge variant="secondary">{lastSearchResults.totalFound}</Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Companies Added:</span>
+                  <br />
+                  <Badge variant="default">{lastSearchResults.companiesAdded}</Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Decision Makers:</span>
+                  <br />
+                  <Badge variant="outline">{lastSearchResults.decisionMakersFound}</Badge>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+
+          {dailyScraped >= dailyLimit && (
+            <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <p className="text-orange-800 text-sm">
+                Daily limit reached. You can search again tomorrow or upgrade your plan for higher limits.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Table,
   TableBody,
@@ -16,8 +17,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, Eye, Edit, TrendingUp, Zap } from "lucide-react";
+import { MoreHorizontal, Eye, Edit, TrendingUp, Zap, Sparkles, BarChart3 } from "lucide-react";
 import { CompanyLead } from "@/hooks/use-supabase-leads";
+import { useCompanyEnrichment } from "@/hooks/use-company-enrichment";
+import { useLeadScoring } from "@/hooks/use-lead-scoring";
 
 interface LeadTableProps {
   leads: CompanyLead[];
@@ -25,6 +28,37 @@ interface LeadTableProps {
 }
 
 export function LeadTable({ leads, onAction }: LeadTableProps) {
+  const { enrichCompany, loading: enrichmentLoading } = useCompanyEnrichment();
+  const { scoreCompany, loading: scoringLoading } = useLeadScoring();
+  const [processingLeads, setProcessingLeads] = useState(new Set<string>());
+
+  const handleEnrichLead = async (lead: CompanyLead) => {
+    setProcessingLeads(prev => new Set(prev).add(lead.id));
+    try {
+      await enrichCompany(lead.id, 'detailed');
+      onAction('enrich', lead);
+    } finally {
+      setProcessingLeads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(lead.id);
+        return newSet;
+      });
+    }
+  };
+
+  const handleScoreLead = async (lead: CompanyLead) => {
+    setProcessingLeads(prev => new Set(prev).add(lead.id));
+    try {
+      await scoreCompany(lead.id);
+      onAction('score', lead);
+    } finally {
+      setProcessingLeads(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(lead.id);
+        return newSet;
+      });
+    }
+  };
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending_review':
