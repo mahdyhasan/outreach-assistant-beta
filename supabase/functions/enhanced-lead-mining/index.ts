@@ -42,6 +42,31 @@ function extractJSONFromResponse(content: string): any {
   }
 }
 
+// Progress tracking utility
+async function updateProgress(supabaseClient: any, sessionId: string, userId: string, step: string, progress: number, results?: number, error?: string) {
+  try {
+    const { error: updateError } = await supabaseClient
+      .from('mining_progress')
+      .upsert({
+        session_id: sessionId,
+        user_id: userId,
+        operation_type: 'enhanced_mining',
+        current_step: step,
+        progress_percentage: progress,
+        results_so_far: results || 0,
+        error_message: error || null,
+        status: error ? 'error' : (progress >= 100 ? 'completed' : 'running'),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'session_id' });
+
+    if (updateError) {
+      console.error('Progress update error:', updateError);
+    }
+  } catch (err) {
+    console.error('Failed to update progress:', err);
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -127,8 +152,17 @@ serve(async (req) => {
 
     const companies: CompanyData[] = [];
 
+    // Initialize progress tracking
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, 'Initializing enhanced mining process...', 5);
+    }
+
     // Step 1: Use Serper to find company websites and LinkedIn profiles
     console.log('Step 1: Searching with Serper...');
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, 'Searching for companies with Serper...', 10);
+    }
+    
     const searchQuery = `"${industry}" companies ${geography} startup scaleup`;
     
     const serperResponse = await fetch('https://google.serper.dev/search', {
@@ -145,11 +179,19 @@ serve(async (req) => {
     });
 
     if (!serperResponse.ok) {
-      throw new Error('Failed to search with Serper API');
+      const error = 'Failed to search with Serper API';
+      if (sessionId) {
+        await updateProgress(supabaseClient, sessionId, user.id, 'Failed to search with Serper', 10, 0, error);
+      }
+      throw new Error(error);
     }
 
     const serperData = await serperResponse.json();
     console.log(`Serper found ${serperData.organic?.length || 0} search results`);
+
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, `Found ${serperData.organic?.length || 0} potential companies`, 20);
+    }
 
     // Extract company data from Serper results
     for (const result of serperData.organic?.slice(0, limit) || []) {
@@ -172,10 +214,16 @@ serve(async (req) => {
       }
     }
 
-    // Step 2: Search for LinkedIn profiles using Serper
+    // Step 2: Search for LinkedIn profiles using Serper and OpenAI as fallback
     console.log('Step 2: Searching for LinkedIn profiles...');
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, 'Discovering LinkedIn profiles...', 30);
+    }
+
+    let linkedinProgress = 0;
     for (const company of companies) {
       try {
+        // First try Serper for LinkedIn
         const linkedinSearchQuery = `"${company.name}" site:linkedin.com/company`;
         
         const linkedinResponse = await fetch('https://google.serper.dev/search', {
@@ -190,6 +238,7 @@ serve(async (req) => {
           }),
         });
 
+        let foundLinkedIn = false;
         if (linkedinResponse.ok) {
           const linkedinData = await linkedinResponse.json();
           
@@ -197,6 +246,7 @@ serve(async (req) => {
             if (result.link?.includes('linkedin.com/company/')) {
               company.linkedin_url = result.link;
               company.source_info.linkedin_source = 'serper';
+              foundLinkedIn = true;
               
               // Extract data from LinkedIn snippet if available
               const snippet = result.snippet || '';
@@ -212,9 +262,72 @@ serve(async (req) => {
             }
           }
         }
+
+        // If Serper didn't find LinkedIn, use OpenAI as fallback
+        if (!foundLinkedIn) {
+          try {
+            const openaiPrompt = `Find the LinkedIn company page URL for: ${company.name}
+Website: ${company.website}
+
+Return ONLY a JSON object:
+{
+  "linkedin_url": "exact LinkedIn company page URL or null if not found"
+}`;
+
+            const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${openaiApiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                  {
+                    role: 'system',
+                    content: 'You are a data researcher. Return only valid JSON with publicly available LinkedIn company URLs.'
+                  },
+                  {
+                    role: 'user',
+                    content: openaiPrompt
+                  }
+                ],
+                max_tokens: 150,
+                temperature: 0.1,
+              }),
+            });
+
+            if (openaiResponse.ok) {
+              const openaiData = await openaiResponse.json();
+              const content = openaiData.choices[0]?.message?.content;
+              
+              try {
+                const linkedinData = extractJSONFromResponse(content);
+                if (linkedinData.linkedin_url && linkedinData.linkedin_url !== 'null') {
+                  company.linkedin_url = linkedinData.linkedin_url;
+                  company.source_info.linkedin_source = 'openai';
+                }
+              } catch (parseError) {
+                console.error('Error parsing OpenAI LinkedIn response for:', company.name);
+              }
+            }
+
+            // Rate limiting for OpenAI
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (error) {
+            console.error('Error using OpenAI for LinkedIn discovery:', company.name, error);
+          }
+        }
         
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Rate limiting for Serper
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Update progress
+        linkedinProgress++;
+        const progressPercent = 30 + (linkedinProgress / companies.length) * 20;
+        if (sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, `LinkedIn discovery: ${linkedinProgress}/${companies.length} companies`, Math.round(progressPercent));
+        }
       } catch (error) {
         console.error('Error searching LinkedIn for:', company.name, error);
       }
@@ -222,6 +335,11 @@ serve(async (req) => {
 
     // Step 3: Use OpenAI to fill missing data gaps
     console.log('Step 3: Using OpenAI to enrich missing data...');
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, 'Enriching company data with AI...', 60);
+    }
+
+    let enrichmentProgress = 0;
     for (const company of companies) {
       try {
         // Determine what data is missing
@@ -229,11 +347,13 @@ serve(async (req) => {
         if (!company.employee_size) missingFields.push('employee_size');
         if (!company.founded_year) missingFields.push('founded_year');
         if (!company.industry) missingFields.push('industry');
-        if (!company.linkedin_url) missingFields.push('linkedin_url');
         if (!company.phone) missingFields.push('phone');
         if (!company.email) missingFields.push('email');
 
-        if (missingFields.length === 0) continue;
+        if (missingFields.length === 0) {
+          enrichmentProgress++;
+          continue;
+        }
 
         const prompt = `Company: ${company.name}
 Website: ${company.website}
@@ -243,7 +363,6 @@ Return ONLY a JSON object with these fields (use null if not found):
   "employee_size": "number of employees (e.g., '50', '100-500')",
   "founded_year": year_founded_as_number,
   "industry": "primary industry category",
-  "linkedin_url": "linkedin company profile URL",
   "phone": "main phone number",
   "email": "main contact email"
 }`;
@@ -298,11 +417,6 @@ Return ONLY a JSON object with these fields (use null if not found):
               company.source_info.industry_source = 'openai';
             }
             
-            if (!company.linkedin_url && enrichedData.linkedin_url) {
-              company.linkedin_url = enrichedData.linkedin_url;
-              company.source_info.linkedin_source = 'openai';
-            }
-            
             if (!company.phone && enrichedData.phone) {
               company.phone = enrichedData.phone;
               company.source_info.phone_source = 'openai';
@@ -319,20 +433,35 @@ Return ONLY a JSON object with these fields (use null if not found):
         }
         
         // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        enrichmentProgress++;
+        const progressPercent = 60 + (enrichmentProgress / companies.length) * 20;
+        if (sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, `AI enrichment: ${enrichmentProgress}/${companies.length} companies`, Math.round(progressPercent));
+        }
       } catch (error) {
         console.error('Error enriching with OpenAI:', company.name, error);
+        enrichmentProgress++;
       }
     }
 
     // Step 4: Use Apollo for KDM discovery
     console.log('Step 4: Using Apollo for KDM discovery...');
+    if (sessionId) {
+      await updateProgress(supabaseClient, sessionId, user.id, 'Discovering key decision makers...', 85);
+    }
+
     const enrichedLeads = [];
     const maxKDMs = rateLimits?.apollo?.maxKDMsPerCompany || 2;
+    let apolloProgress = 0;
 
     for (const company of companies) {
       try {
-        if (!company.website) continue;
+        if (!company.website) {
+          apolloProgress++;
+          continue;
+        }
 
         // Search for people in Apollo
         const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
@@ -399,8 +528,15 @@ Return ONLY a JSON object with these fields (use null if not found):
         // Rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
         
+        apolloProgress++;
+        const progressPercent = 85 + (apolloProgress / companies.length) * 10;
+        if (sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, `KDM discovery: ${apolloProgress}/${companies.length} companies`, Math.round(progressPercent));
+        }
+        
       } catch (error) {
         console.error('Error with Apollo for company:', company.name, error);
+        apolloProgress++;
       }
     }
 
@@ -408,6 +544,10 @@ Return ONLY a JSON object with these fields (use null if not found):
 
     // Check for duplicates and insert leads into database
     if (enrichedLeads.length > 0) {
+      if (sessionId) {
+        await updateProgress(supabaseClient, sessionId, user.id, 'Saving results to database...', 95);
+      }
+
       const { data: existingCompanies } = await supabaseClient
         .from('companies')
         .select('website, company_name')
@@ -454,6 +594,10 @@ Return ONLY a JSON object with these fields (use null if not found):
         if (error) {
           console.error('Database insert error:', error);
           
+          if (sessionId) {
+            await updateProgress(supabaseClient, sessionId, user.id, 'Database save failed', 95, uniqueLeads.length, error.message);
+          }
+          
           // Return partial results even if database save fails
           console.log('Returning partial results due to database error');
           return new Response(
@@ -477,6 +621,18 @@ Return ONLY a JSON object with these fields (use null if not found):
         }
 
         console.log(`Successfully inserted ${data.length} unique companies into database`);
+        
+        if (sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, `Successfully saved ${data.length} leads`, 100, data.length);
+        }
+      } else {
+        if (sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, 'No new unique leads found', 100, 0);
+        }
+      }
+    } else {
+      if (sessionId) {
+        await updateProgress(supabaseClient, sessionId, user.id, 'No leads found', 100, 0);
       }
     }
 
@@ -499,6 +655,34 @@ Return ONLY a JSON object with these fields (use null if not found):
 
   } catch (error) {
     console.error('Error in enhanced-lead-mining function:', error);
+    
+    // Update progress with error if sessionId is available
+    const authHeader = req.headers.get('Authorization');
+    if (authHeader) {
+      try {
+        const supabaseClient = createClient(
+          Deno.env.get('SUPABASE_URL') ?? '',
+          Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+          {
+            global: {
+              headers: {
+                Authorization: authHeader,
+              },
+            },
+          }
+        );
+        
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        const { sessionId } = await req.json().catch(() => ({}));
+        
+        if (user && sessionId) {
+          await updateProgress(supabaseClient, sessionId, user.id, 'Mining failed', 0, 0, error.message);
+        }
+      } catch (progError) {
+        console.error('Failed to update error progress:', progError);
+      }
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: error.message,

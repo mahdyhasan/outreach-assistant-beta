@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Bot, Play, AlertCircle, CheckCircle, Search, Brain, Zap } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -24,8 +23,6 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
   const { toast } = useToast();
   const { rateLimits } = useSettings();
   const [isRunning, setIsRunning] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState('');
   const [results, setResults] = useState<any>(null);
   const [showProgress, setShowProgress] = useState(false);
   const [sessionId, setSessionId] = useState('');
@@ -70,14 +67,10 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
     const newSessionId = `mining_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     setSessionId(newSessionId);
     setIsRunning(true);
-    setProgress(0);
     setResults(null);
     setShowProgress(true);
 
     try {
-      setCurrentStep('Initializing enhanced mining process...');
-      setProgress(10);
-
       const { data, error } = await supabase.functions.invoke('enhanced-lead-mining', {
         body: {
           industry: criteria.industry,
@@ -93,7 +86,7 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
         throw new Error(error.message || 'Failed to start mining process');
       }
 
-      // Results are handled by the progress tracker
+      // Set results but don't close progress dialog yet - let the progress tracker handle completion
       setResults(data);
       
     } catch (error: any) {
@@ -114,8 +107,6 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
       });
       
       setIsRunning(false);
-      setProgress(0);
-      setCurrentStep('');
       setShowProgress(false);
     }
   };
@@ -123,8 +114,6 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
   const handleProgressComplete = (results: any) => {
     setIsRunning(false);
     setShowProgress(false);
-    setProgress(100);
-    setCurrentStep('Completed!');
     
     onLeadsFound(results.totalResults || 0);
     
@@ -132,6 +121,19 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
       title: "Mining Completed",
       description: `Successfully found ${results.totalResults || 0} new leads`,
     });
+  };
+
+  const handleProgressClose = (open: boolean) => {
+    if (!open && !isRunning) {
+      setShowProgress(false);
+    } else if (!open && isRunning) {
+      // Don't allow closing while mining is in progress
+      toast({
+        title: "Mining in Progress",
+        description: "Please wait for the mining process to complete",
+        variant: "destructive",
+      });
+    }
   };
 
   const remainingLimit = dailyLimit - dailyScraped;
@@ -160,7 +162,7 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
               </div>
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-green-500" />
-                <span><strong>Step 2:</strong> Extract data from LinkedIn search snippets</span>
+                <span><strong>Step 2:</strong> Enhanced LinkedIn discovery with OpenAI fallback</span>
               </div>
               <div className="flex items-center gap-2">
                 <Brain className="h-4 w-4 text-purple-500" />
@@ -259,16 +261,6 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
             {isRunning ? 'Mining in Progress...' : 'Start Enhanced Mining'}
           </Button>
 
-          {/* Progress Display */}
-          {isRunning && (
-            <div className="space-y-3">
-              <Progress value={progress} className="w-full" />
-              <p className="text-sm text-muted-foreground text-center">
-                {currentStep}
-              </p>
-            </div>
-          )}
-
           {/* Results Display */}
           {results && (
             <Alert>
@@ -307,7 +299,7 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
       {/* Real-time Progress Dialog */}
       <RealTimeProgress
         open={showProgress}
-        onOpenChange={setShowProgress}
+        onOpenChange={handleProgressClose}
         sessionId={sessionId}
         onComplete={handleProgressComplete}
       />
