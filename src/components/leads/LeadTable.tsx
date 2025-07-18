@@ -198,8 +198,10 @@ export function LeadTable({ leads, onAction, onRefresh, selectedLeads, onSelecti
               />
             </TableHead>
             <TableHead>Company</TableHead>
+            <TableHead>Website</TableHead>
             <TableHead>Industry</TableHead>
             <TableHead>Size</TableHead>
+            <TableHead>Founded</TableHead>
             <TableHead>Score</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Source</TableHead>
@@ -220,15 +222,25 @@ export function LeadTable({ leads, onAction, onRefresh, selectedLeads, onSelecti
                 />
               </TableCell>
               <TableCell className="font-medium">
-                <div>
-                  <div className="font-semibold">{lead.company_name}</div>
-                  {lead.website && (
-                    <div className="text-sm text-muted-foreground">{lead.website}</div>
-                  )}
-                </div>
+                <div className="font-semibold">{lead.company_name}</div>
+              </TableCell>
+              <TableCell>
+                {lead.website ? (
+                  <a 
+                    href={lead.website} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    {lead.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0]}
+                  </a>
+                ) : (
+                  <span className="text-muted-foreground text-sm">No website</span>
+                )}
               </TableCell>
               <TableCell>{lead.industry || 'N/A'}</TableCell>
               <TableCell>{lead.employee_size || 'N/A'}</TableCell>
+              <TableCell>{lead.founded || 'N/A'}</TableCell>
               <TableCell>
                 <span className={`font-semibold ${getScoreColor(lead.ai_score)}`}>
                   {lead.ai_score}%

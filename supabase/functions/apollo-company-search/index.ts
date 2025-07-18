@@ -65,6 +65,7 @@ serve(async (req) => {
     if (query || industry || location || size) {
       const apolloSearchBody = {
         q_organization_domain_exists: true,
+        q_organization_website_exists: true,  // Require website
         q_organization_name: query || undefined,
         organization_locations: location ? [location] : undefined,
         organization_industry_tag_ids: industry ? [industry] : undefined,
@@ -90,27 +91,36 @@ serve(async (req) => {
         console.log('Apollo response received:', apolloData.organizations?.length || 0, 'companies');
         
         if (apolloData.organizations) {
-          companies = apolloData.organizations.map((org: any) => ({
-            company_name: org.name,
-            website: org.website_url,
-            industry: org.industry,
-            employee_size: org.estimated_num_employees ? `${org.estimated_num_employees}` : '',
-            founded: org.founded_year ? `${org.founded_year}` : '',
-            description: org.short_description || '',
-            public_email: '',
-            public_phone: org.phone,
-            linkedin_profile: org.linkedin_url,
-            user_id: userId,
-            enrichment_data: {
-              apollo_id: org.id,
-              logo_url: org.logo_url,
-              location: org.primary_location,
-              technologies: org.technologies || []
-            },
-            ai_score: 0,
-            source: 'apollo',
-            status: 'pending_review'
-          }));
+          companies = apolloData.organizations
+            .filter((org: any) => org.website_url) // Only include companies with websites
+            .map((org: any) => ({
+              company_name: org.name,
+              website: org.website_url,
+              industry: org.industry,
+              employee_size: org.estimated_num_employees ? `${org.estimated_num_employees}` : '',
+              employee_size_numeric: org.estimated_num_employees || null,
+              founded: org.founded_year ? `${org.founded_year}` : '',
+              founded_year: org.founded_year || null,
+              description: org.short_description || '',
+              location: org.primary_location?.name || `${org.city || ''}, ${org.country || ''}`.trim(),
+              country: org.country,
+              public_email: org.email || '',
+              public_phone: org.phone,
+              linkedin_profile: org.linkedin_url,
+              user_id: userId,
+              enrichment_data: {
+                apollo_id: org.id,
+                logo_url: org.logo_url,
+                location: org.primary_location,
+                technologies: org.technologies || [],
+                keywords: org.keywords || [],
+                revenue_range: org.revenue_range,
+                seo_description: org.seo_description
+              },
+              ai_score: 0,
+              source: 'apollo',
+              status: 'pending_review'
+            }));
         }
       } else {
         console.error('Apollo search failed:', await apolloResponse.text());
@@ -169,11 +179,63 @@ serve(async (req) => {
       }
     }
 
-    // Store companies in database
+    // Check for duplicates before storing
     if (companies.length > 0) {
+      // Get existing companies to avoid duplicates
+      const existingWebsites = new Set();
+      const existingNames = new Set();
+      
+      const { data: existingCompanies } = await supabase
+        .from('companies')
+        .select('website, company_name')
+        .eq('user_id', userId);
+
+      existingCompanies?.forEach(company => {
+        if (company.website) {
+          const domain = company.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+          existingWebsites.add(domain);
+        }
+        if (company.company_name) {
+          existingNames.add(company.company_name.toLowerCase());
+        }
+      });
+
+      // Filter out duplicates
+      const uniqueCompanies = companies.filter(company => {
+        const domain = company.website?.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+        const name = company.company_name.toLowerCase();
+        
+        const isDuplicateDomain = domain && existingWebsites.has(domain);
+        const isDuplicateName = existingNames.has(name);
+        
+        if (isDuplicateDomain || isDuplicateName) {
+          console.log(`Skipping duplicate: ${company.company_name} (${domain})`);
+          return false;
+        }
+        
+        // Add to sets to prevent duplicates within this batch
+        if (domain) existingWebsites.add(domain);
+        existingNames.add(name);
+        
+        return true;
+      });
+
+      if (uniqueCompanies.length === 0) {
+        console.log('All companies were duplicates');
+        return new Response(JSON.stringify({
+          success: true,
+          companies: [],
+          total_found: companies.length,
+          decision_makers_found: 0,
+          message: 'All found companies were duplicates'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { data: insertedCompanies, error: insertError } = await supabase
         .from('companies')
-        .insert(companies)
+        .insert(uniqueCompanies)
         .select();
 
       if (insertError) {
@@ -181,7 +243,7 @@ serve(async (req) => {
         throw insertError;
       }
 
-      console.log('Successfully inserted', insertedCompanies?.length || 0, 'companies');
+      console.log('Successfully inserted', insertedCompanies?.length || 0, 'unique companies');
 
       return new Response(JSON.stringify({
         success: true,

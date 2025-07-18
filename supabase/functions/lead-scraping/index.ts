@@ -151,35 +151,35 @@ serve(async (req) => {
               contacts = peopleData.people || [];
             }
 
-            // Create lead entries for each contact
-            for (const contact of contacts.slice(0, 2)) { // Limit to 2 contacts per company
-              if (contact.email) {
-                const lead = {
-                  company_name: orgData.name || company.name,
-                  contact_name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
-                  email: contact.email,
-                  job_title: contact.title || 'Unknown',
-                  company_size: orgData.estimated_num_employees ? 
-                    `${orgData.estimated_num_employees}` : 'Unknown',
-                  industry: orgData.industry || industry,
-                  location: `${orgData.city || ''}, ${orgData.country || ''}`.trim(),
-                  website: company.website,
-                  linkedin_url: contact.linkedin_url || null,
-                  phone: contact.phone || null,
-                  source: 'automated_scraping',
-                  status: 'pending_review',
-                  priority: 'medium',
-                  ai_score: Math.floor(Math.random() * 30) + 70, // 70-100
-                  final_score: Math.floor(Math.random() * 30) + 70,
-                  enrichment_data: {
-                    company_data: orgData,
-                    contact_data: contact,
-                    search_source: 'serper_apollo'
-                  }
-                };
-                
-                enrichedLeads.push(lead);
-              }
+            // Only process companies with websites and contact info
+            if (orgData.website_url && contacts.length > 0) {
+              const companyLead = {
+                company_name: orgData.name || company.name,
+                website: orgData.website_url || company.website,
+                industry: orgData.industry || industry,
+                employee_size: orgData.estimated_num_employees ? `${orgData.estimated_num_employees}` : '',
+                employee_size_numeric: orgData.estimated_num_employees || null,
+                founded: orgData.founded_year ? `${orgData.founded_year}` : '',
+                founded_year: orgData.founded_year || null,
+                description: orgData.short_description || company.description,
+                location: orgData.primary_location?.name || `${orgData.city || ''}, ${orgData.country || ''}`.trim(),
+                country: orgData.country,
+                public_email: contacts[0]?.email || '',
+                public_phone: orgData.phone,
+                linkedin_profile: orgData.linkedin_url,
+                user_id: userId,
+                source: 'automated_scraping',
+                status: 'pending_review',
+                ai_score: Math.floor(Math.random() * 30) + 70, // 70-100
+                enrichment_data: {
+                  apollo_id: orgData.id,
+                  company_data: orgData,
+                  contacts_found: contacts.length,
+                  search_source: 'serper_apollo'
+                }
+              };
+              
+              enrichedLeads.push(companyLead);
             }
           }
         }
@@ -249,12 +249,16 @@ serve(async (req) => {
           company_name: lead.company_name,
           website: lead.website,
           industry: lead.industry,
-          employee_size: lead.company_size,
+          employee_size: lead.employee_size,
+          employee_size_numeric: lead.employee_size_numeric,
+          founded: lead.founded,
+          founded_year: lead.founded_year,
           location: lead.location,
-          public_email: lead.email?.includes('@') ? lead.email : null,
-          public_phone: lead.phone,
-          linkedin_profile: lead.linkedin_url,
-          description: `Contact: ${lead.contact_name} (${lead.job_title})`,
+          country: lead.country,
+          public_email: lead.public_email,
+          public_phone: lead.public_phone,
+          linkedin_profile: lead.linkedin_profile,
+          description: lead.description,
           user_id: user.id,
           source: 'automated_scraping',
           status: 'pending_review',

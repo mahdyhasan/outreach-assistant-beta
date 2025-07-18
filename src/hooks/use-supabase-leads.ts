@@ -8,7 +8,11 @@ export interface CompanyLead {
   website?: string;
   industry?: string;
   employee_size?: string;
+  employee_size_numeric?: number;
   founded?: string;
+  founded_year?: number;
+  location?: string;
+  country?: string;
   description?: string;
   public_email?: string;
   public_phone?: string;

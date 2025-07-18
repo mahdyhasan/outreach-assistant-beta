@@ -66,11 +66,19 @@ export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadD
                   <p className="text-sm text-muted-foreground">{lead.founded || 'N/A'}</p>
                 </div>
                 <div>
+                  <p className="text-sm font-medium">Location</p>
+                  <p className="text-sm text-muted-foreground">{lead.location || 'N/A'}</p>
+                </div>
+                <div>
                   <p className="text-sm font-medium">AI Score</p>
                   <div className="flex items-center gap-2">
                     <TrendingUp className="h-4 w-4" />
                     <span className="font-semibold">{lead.ai_score}%</span>
                   </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Source</p>
+                  <Badge variant="secondary">{lead.source}</Badge>
                 </div>
               </div>
 
@@ -98,6 +106,19 @@ export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadD
                     <div className="flex items-center gap-2">
                       <Phone className="h-4 w-4" />
                       <span>{lead.public_phone}</span>
+                    </div>
+                  )}
+                  {lead.linkedin_profile && (
+                    <div className="flex items-center gap-2">
+                      <Linkedin className="h-4 w-4" />
+                      <a 
+                        href={lead.linkedin_profile} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        LinkedIn Profile
+                      </a>
                     </div>
                   )}
                 </div>
