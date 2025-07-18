@@ -18,10 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useSupabaseLeads } from "@/hooks/use-supabase-leads";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Plus, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { checkCompanyDuplicate } from "@/lib/deduplication-utils";
 
 interface AddLeadDialogProps {
   open: boolean;
@@ -32,6 +34,11 @@ interface AddLeadDialogProps {
 export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{
+    show: boolean;
+    duplicates: any[];
+    forceAdd: boolean;
+  }>({ show: false, duplicates: [], forceAdd: false });
   const [formData, setFormData] = useState({
     company_name: '',
     website: '',
@@ -44,10 +51,31 @@ export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogPr
     linkedin_profile: '',
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const checkForDuplicates = async () => {
+    if (!formData.company_name.trim() && !formData.website.trim()) return;
+    
     setLoading(true);
+    try {
+      const { isDuplicate, duplicates } = await checkCompanyDuplicate(
+        formData.company_name,
+        formData.website
+      );
+      
+      if (isDuplicate && !duplicateWarning.forceAdd) {
+        setDuplicateWarning({ show: true, duplicates, forceAdd: false });
+        setLoading(false);
+        return;
+      }
+      
+      // Proceed with adding the lead
+      await addLead();
+    } catch (error) {
+      console.error('Error checking duplicates:', error);
+      await addLead(); // Continue if duplicate check fails
+    }
+  };
 
+  const addLead = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -67,23 +95,13 @@ export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogPr
 
       toast({
         title: "Success",
-        description: "Lead added successfully",
+        description: duplicateWarning.forceAdd 
+          ? "Lead added successfully (duplicate override)" 
+          : "Lead added successfully",
       });
 
       onSuccess();
-      
-      // Reset form
-      setFormData({
-        company_name: '',
-        website: '',
-        industry: '',
-        employee_size: '',
-        founded: '',
-        description: '',
-        public_email: '',
-        public_phone: '',
-        linkedin_profile: '',
-      });
+      resetForm();
     } catch (error: any) {
       console.error('Error adding lead:', error);
       toast({
@@ -94,6 +112,32 @@ export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogPr
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await checkForDuplicates();
+  };
+
+  const handleForceAdd = async () => {
+    setDuplicateWarning(prev => ({ ...prev, forceAdd: true }));
+    setLoading(true);
+    await addLead();
+  };
+
+  const resetForm = () => {
+    setFormData({
+      company_name: '',
+      website: '',
+      industry: '',
+      employee_size: '',
+      founded: '',
+      description: '',
+      public_email: '',
+      public_phone: '',
+      linkedin_profile: '',
+    });
+    setDuplicateWarning({ show: false, duplicates: [], forceAdd: false });
   };
 
   const updateFormData = (key: string, value: string) => {
@@ -112,6 +156,39 @@ export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogPr
             Manually add a new company lead to your pipeline
           </DialogDescription>
         </DialogHeader>
+
+        {duplicateWarning.show && (
+          <Alert className="border-yellow-200 bg-yellow-50">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <AlertDescription className="text-yellow-800">
+              <div className="font-medium mb-2">Potential duplicate found:</div>
+              {duplicateWarning.duplicates.map((dup, index) => (
+                <div key={index} className="text-sm mb-1">
+                  • {dup.company_name} ({dup.reason})
+                </div>
+              ))}
+              <div className="flex gap-2 mt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDuplicateWarning({ show: false, duplicates: [], forceAdd: false })}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleForceAdd}
+                  disabled={loading}
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add Anyway
+                </Button>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -217,9 +294,9 @@ export function AddLeadDialog({ open, onOpenChange, onSuccess }: AddLeadDialogPr
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button type="submit" disabled={loading || duplicateWarning.show}>
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Add Lead
+              {duplicateWarning.show ? 'Check Above' : 'Add Lead'}
             </Button>
           </DialogFooter>
         </form>

@@ -213,11 +213,45 @@ Respond with a JSON array of signals: [{"type": "signal_type", "title": "Signal 
       }
     }
 
-    // Insert signals into database
+    // Check for duplicate signals before inserting
     if (signals.length > 0) {
+      const { data: existingSignals } = await supabase
+        .from('signals')
+        .select('signal_title, signal_type, signal_url')
+        .eq('company_id', company_id);
+
+      const uniqueSignals = signals.filter(signal => {
+        const isDuplicate = existingSignals?.some(existing => 
+          existing.signal_type === signal.signal_type && (
+            existing.signal_title.toLowerCase() === signal.signal_title.toLowerCase() ||
+            (existing.signal_url && signal.signal_url && existing.signal_url === signal.signal_url)
+          )
+        );
+        
+        if (isDuplicate) {
+          console.log(`Skipping duplicate signal: ${signal.signal_title}`);
+          return false;
+        }
+        
+        return true;
+      });
+
+      if (uniqueSignals.length === 0) {
+        console.log('All signals were duplicates, skipping insert');
+        return new Response(JSON.stringify({
+          success: true,
+          signals: [],
+          signals_found: 0,
+          company_name: company.company_name,
+          message: 'No new signals found (all were duplicates)'
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const { data: insertedSignals, error: insertError } = await supabase
         .from('signals')
-        .insert(signals)
+        .insert(uniqueSignals)
         .select();
 
       if (insertError) {
@@ -225,14 +259,14 @@ Respond with a JSON array of signals: [{"type": "signal_type", "title": "Signal 
         throw insertError;
       }
 
-      console.log('Successfully generated', insertedSignals?.length || 0, 'signals for', company.company_name);
+      console.log('Successfully generated', insertedSignals?.length || 0, 'unique signals for', company.company_name);
 
       return new Response(JSON.stringify({
         success: true,
         signals: insertedSignals,
         signals_found: insertedSignals?.length || 0,
         company_name: company.company_name,
-        message: `Generated ${insertedSignals?.length || 0} signals`
+        message: `Generated ${insertedSignals?.length || 0} new signals`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

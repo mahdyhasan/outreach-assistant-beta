@@ -93,7 +93,16 @@ serve(async (req) => {
       titlesSearched.push(title);
       
       try {
-        const searchBody = {
+        // Use website domain as primary search criteria, fallback to company name
+        const searchDomain = company.website ? 
+          company.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0] : null;
+        
+        const searchBody = searchDomain ? {
+          q_organization_domains: [searchDomain],
+          person_titles: [title],
+          page: 1,
+          per_page: 5
+        } : {
           q_organization_names: [company.company_name],
           person_titles: [title],
           page: 1,

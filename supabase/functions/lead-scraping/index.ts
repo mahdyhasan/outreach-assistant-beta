@@ -170,19 +170,86 @@ serve(async (req) => {
 
     console.log(`Enriched ${enrichedLeads.length} leads`);
 
-    // Step 3: Insert leads into database
+    // Step 3: Check for duplicates and insert leads into database
     if (enrichedLeads.length > 0) {
-      const { data, error } = await supabaseClient
-        .from('leads')
-        .insert(enrichedLeads)
-        .select();
-
-      if (error) {
-        console.error('Database insert error:', error);
-        throw error;
+      // Get user from auth
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (authError || !user) {
+        throw new Error('User not authenticated');
       }
 
-      console.log(`Successfully inserted ${data.length} leads into database`);
+      // Check existing companies to avoid duplicates
+      const { data: existingCompanies } = await supabaseClient
+        .from('companies')
+        .select('website, company_name')
+        .eq('user_id', user.id);
+
+      const existingDomains = new Set();
+      const existingNames = new Set();
+      
+      existingCompanies?.forEach(company => {
+        if (company.website) {
+          const domain = company.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+          existingDomains.add(domain);
+        }
+        if (company.company_name) {
+          existingNames.add(company.company_name.toLowerCase());
+        }
+      });
+
+      // Filter out duplicates
+      const uniqueLeads = enrichedLeads.filter(lead => {
+        const leadDomain = lead.website ? lead.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase() : '';
+        const leadName = lead.company_name.toLowerCase();
+        
+        const isDuplicateDomain = leadDomain && existingDomains.has(leadDomain);
+        const isDuplicateName = existingNames.has(leadName);
+        
+        if (isDuplicateDomain || isDuplicateName) {
+          console.log(`Skipping duplicate: ${lead.company_name} (${leadDomain})`);
+          return false;
+        }
+        
+        // Add to sets to prevent duplicates within this batch
+        if (leadDomain) existingDomains.add(leadDomain);
+        existingNames.add(leadName);
+        
+        return true;
+      });
+
+      if (uniqueLeads.length === 0) {
+        console.log('All leads were duplicates, skipping insert');
+      } else {
+        // Convert leads to companies format
+        const companiesData = uniqueLeads.map(lead => ({
+          company_name: lead.company_name,
+          website: lead.website,
+          industry: lead.industry,
+          employee_size: lead.company_size,
+          location: lead.location,
+          public_email: lead.email?.includes('@') ? lead.email : null,
+          public_phone: lead.phone,
+          linkedin_profile: lead.linkedin_url,
+          description: `Contact: ${lead.contact_name} (${lead.job_title})`,
+          user_id: user.id,
+          source: 'automated_scraping',
+          status: 'pending_review',
+          ai_score: lead.ai_score,
+          enrichment_data: lead.enrichment_data
+        }));
+
+        const { data, error } = await supabaseClient
+          .from('companies')
+          .insert(companiesData)
+          .select();
+
+        if (error) {
+          console.error('Database insert error:', error);
+          throw error;
+        }
+
+        console.log(`Successfully inserted ${data.length} unique companies into database`);
+      }
     }
 
     return new Response(

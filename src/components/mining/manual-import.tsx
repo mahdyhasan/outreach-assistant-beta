@@ -4,9 +4,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Upload, Plus, FileText, Download } from 'lucide-react';
+import { Upload, Plus, FileText, Download, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { checkCompanyDuplicate } from '@/lib/deduplication-utils';
 
 interface ManualImportProps {
   onLeadsAdded: (count: number) => void;
@@ -42,11 +43,32 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
         throw new Error('No valid companies found in file');
       }
 
-      // Save companies to database
+      // Check for duplicates and filter out duplicates
+      const validCompanies = [];
+      const duplicates = [];
+      
+      for (const company of companies) {
+        const { isDuplicate } = await checkCompanyDuplicate(
+          company.company_name,
+          company.website
+        );
+        
+        if (isDuplicate) {
+          duplicates.push(company.company_name);
+        } else {
+          validCompanies.push(company);
+        }
+      }
+
+      if (validCompanies.length === 0) {
+        throw new Error('All companies in the file are duplicates');
+      }
+
+      // Save valid companies to database
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const companiesData = companies.map(company => ({
+      const companiesData = validCompanies.map(company => ({
         ...company,
         user_id: user.id,
         source: 'manual',
@@ -61,10 +83,16 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
 
       if (error) throw error;
 
-      onLeadsAdded(companies.length);
+      onLeadsAdded(validCompanies.length);
+      
+      let description = `${validCompanies.length} companies processed and queued for enrichment`;
+      if (duplicates.length > 0) {
+        description += `. ${duplicates.length} duplicates were skipped.`;
+      }
+      
       toast({
         title: "Success",
-        description: `${companies.length} companies processed and queued for enrichment`,
+        description,
       });
     } catch (error: any) {
       toast({
@@ -94,11 +122,32 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
       });
     
     try {
-      // Save companies to database
+      // Check for duplicates and filter out duplicates
+      const validCompanies = [];
+      const duplicates = [];
+      
+      for (const company of companies) {
+        const { isDuplicate } = await checkCompanyDuplicate(
+          company.company_name,
+          company.website
+        );
+        
+        if (isDuplicate) {
+          duplicates.push(company.company_name || company.website);
+        } else {
+          validCompanies.push(company);
+        }
+      }
+
+      if (validCompanies.length === 0) {
+        throw new Error('All companies are duplicates');
+      }
+
+      // Save valid companies to database
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const companiesData = companies.map(company => ({
+      const companiesData = validCompanies.map(company => ({
         ...company,
         user_id: user.id,
         source: 'manual',
@@ -113,10 +162,16 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
 
       if (error) throw error;
 
-      onLeadsAdded(companies.length);
+      onLeadsAdded(validCompanies.length);
+      
+      let description = `${validCompanies.length} companies queued for enrichment`;
+      if (duplicates.length > 0) {
+        description += `. ${duplicates.length} duplicates were skipped.`;
+      }
+      
       toast({
         title: "Success",
-        description: `${companies.length} companies queued for enrichment`,
+        description,
       });
       setCompanyList('');
     } catch (error: any) {
