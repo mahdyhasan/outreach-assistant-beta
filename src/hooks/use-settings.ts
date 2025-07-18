@@ -227,7 +227,7 @@ Always use the contact's first name in greeting.`,
         updated_at: new Date().toISOString()
       };
 
-      console.log('Saving settings data:', settingsData);
+      // Saving settings data
 
       const { error } = await supabase
         .from('user_settings')
@@ -236,7 +236,7 @@ Always use the contact's first name in greeting.`,
         });
 
       if (error) {
-        console.error('Supabase upsert error:', error);
+        console.error('Settings save error:', error);
         toast({
           title: "Error",
           description: `Failed to save settings: ${error.message}`,

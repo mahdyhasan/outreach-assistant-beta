@@ -21,7 +21,7 @@ export const AutomatedScraping = ({
   dailyLimit = 100, 
   onLeadsFound 
 }: AutomatedScrapingProps) => {
-  console.log('AutomatedScraping rendering with props:', { dailyScraped, dailyLimit });
+  // Component initialized
   
   const { searchCompanies, loading } = useApolloSearch();
   const [searchParams, setSearchParams] = useState<CompanySearchFilters>({
@@ -38,7 +38,7 @@ export const AutomatedScraping = ({
   } | null>(null);
 
   useEffect(() => {
-    console.log('AutomatedScraping mounted successfully');
+    // Component mounted
   }, []);
 
   const handleSearch = async () => {

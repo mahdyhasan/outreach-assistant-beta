@@ -2,6 +2,30 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
+// Domain utility function for consistent domain extraction
+function extractMainDomain(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // Remove protocol if present
+    let domain = url.replace(/^https?:\/\//, '');
+    
+    // Remove www. prefix
+    domain = domain.replace(/^www\./, '');
+    
+    // Remove trailing slash and path
+    domain = domain.split('/')[0];
+    
+    // Remove port if present
+    domain = domain.split(':')[0];
+    
+    return domain.toLowerCase();
+  } catch (error) {
+    console.error('Error extracting domain:', error);
+    return '';
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -97,7 +121,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             api_key: apolloApiKey,
-            domain: company.website.replace(/^https?:\/\//, '').replace(/\/$/, '')
+            domain: extractMainDomain(company.website)
           })
         });
 

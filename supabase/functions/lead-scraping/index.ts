@@ -1,6 +1,30 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Domain utility function for consistent domain extraction
+function extractMainDomain(url: string): string {
+  if (!url) return '';
+  
+  try {
+    // Remove protocol if present
+    let domain = url.replace(/^https?:\/\//, '');
+    
+    // Remove www. prefix
+    domain = domain.replace(/^www\./, '');
+    
+    // Remove trailing slash and path
+    domain = domain.split('/')[0];
+    
+    // Remove port if present
+    domain = domain.split(':')[0];
+    
+    return domain.toLowerCase();
+  } catch (error) {
+    console.error('Error extracting domain:', error);
+    return '';
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -94,7 +118,7 @@ serve(async (req) => {
             'X-Api-Key': apolloApiKey,
           },
           body: JSON.stringify({
-            q_organization_domains: company.website.replace('https://', '').replace('http://', ''),
+            q_organization_domains: extractMainDomain(company.website),
             page: 1,
             per_page: 1,
           }),
@@ -114,7 +138,7 @@ serve(async (req) => {
                 'X-Api-Key': apolloApiKey,
               },
               body: JSON.stringify({
-                q_organization_domains: company.website.replace('https://', '').replace('http://', ''),
+                q_organization_domains: extractMainDomain(company.website),
                 page: 1,
                 per_page: 3,
                 person_titles: ['CEO', 'CTO', 'Founder', 'Director', 'VP', 'Manager'],
@@ -189,7 +213,7 @@ serve(async (req) => {
       
       existingCompanies?.forEach(company => {
         if (company.website) {
-          const domain = company.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase();
+          const domain = extractMainDomain(company.website);
           existingDomains.add(domain);
         }
         if (company.company_name) {
@@ -199,7 +223,7 @@ serve(async (req) => {
 
       // Filter out duplicates
       const uniqueLeads = enrichedLeads.filter(lead => {
-        const leadDomain = lead.website ? lead.website.replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].toLowerCase() : '';
+        const leadDomain = extractMainDomain(lead.website || '');
         const leadName = lead.company_name.toLowerCase();
         
         const isDuplicateDomain = leadDomain && existingDomains.has(leadDomain);
