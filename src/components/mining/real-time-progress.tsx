@@ -42,7 +42,68 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasError, setHasError] = useState(false);
 
-  // Poll for progress updates
+  // Real-time subscription for instant updates
+  useEffect(() => {
+    if (!open || !sessionId) return;
+
+    console.log('Setting up real-time subscription for session:', sessionId);
+
+    const channel = supabase
+      .channel(`mining-progress-${sessionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'mining_progress',
+          filter: `session_id=eq.${sessionId}`
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          const newData = payload.new as ProgressRecord;
+          
+          if (newData) {
+            setProgressData(newData);
+            
+            if (newData.current_step) {
+              const timestamp = new Date().toLocaleTimeString();
+              const logMessage = `[${timestamp}] ${newData.current_step}`;
+              
+              setLogs(prev => {
+                const lastLog = prev[prev.length - 1];
+                if (!lastLog || !lastLog.includes(newData.current_step)) {
+                  return [...prev, logMessage].slice(-20);
+                }
+                return prev;
+              });
+            }
+
+            if (newData.status === 'completed') {
+              setIsCompleted(true);
+              setTimeout(() => {
+                onComplete?.({ 
+                  sessionId: newData.session_id, 
+                  totalResults: newData.results_so_far,
+                  completedAt: newData.updated_at 
+                });
+              }, 1000);
+            } else if (newData.status === 'error') {
+              setHasError(true);
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
+
+    return () => {
+      console.log('Cleaning up real-time subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [open, sessionId, onComplete]);
+
+  // Poll for progress updates as backup
   useEffect(() => {
     if (!open || !sessionId) return;
 
@@ -50,6 +111,8 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
 
     const pollProgress = async () => {
       try {
+        console.log('Polling progress for session:', sessionId);
+        
         const { data, error } = await supabase
           .from('mining_progress')
           .select('*')
@@ -62,6 +125,7 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
         }
 
         if (data) {
+          console.log('Polled progress data:', data);
           setProgressData(data);
           
           // Add new log entry if step changed
@@ -72,7 +136,7 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
             setLogs(prev => {
               const lastLog = prev[prev.length - 1];
               if (!lastLog || !lastLog.includes(data.current_step)) {
-                return [...prev, logMessage].slice(-20); // Keep last 20 logs
+                return [...prev, logMessage].slice(-20);
               }
               return prev;
             });
@@ -83,7 +147,6 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
             setIsCompleted(true);
             clearInterval(pollInterval);
             
-            // Trigger completion callback
             setTimeout(() => {
               onComplete?.({ 
                 sessionId: data.session_id, 
@@ -112,51 +175,6 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
     };
   }, [open, sessionId, onComplete]);
 
-  // Real-time subscription for instant updates
-  useEffect(() => {
-    if (!open || !sessionId) return;
-
-    const channel = supabase
-      .channel('mining-progress')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'mining_progress',
-          filter: `session_id=eq.${sessionId}`
-        },
-        (payload) => {
-          const newData = payload.new as ProgressRecord;
-          setProgressData(newData);
-          
-          if (newData.current_step) {
-            const timestamp = new Date().toLocaleTimeString();
-            const logMessage = `[${timestamp}] ${newData.current_step}`;
-            
-            setLogs(prev => {
-              const lastLog = prev[prev.length - 1];
-              if (!lastLog || !lastLog.includes(newData.current_step)) {
-                return [...prev, logMessage].slice(-20);
-              }
-              return prev;
-            });
-          }
-
-          if (newData.status === 'completed') {
-            setIsCompleted(true);
-          } else if (newData.status === 'error') {
-            setHasError(true);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [open, sessionId]);
-
   const getStatusIcon = () => {
     if (hasError) return <XCircle className="h-5 w-5 text-red-500" />;
     if (isCompleted) return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -170,7 +188,7 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
   };
 
   const progress = progressData?.progress_percentage || 0;
-  const currentStep = progressData?.current_step || 'Initializing...';
+  const currentStep = progressData?.current_step || 'Waiting for updates...';
   const totalResults = progressData?.results_so_far || 0;
 
   return (
@@ -185,6 +203,11 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Session Info */}
+          <div className="text-xs text-muted-foreground font-mono">
+            Session ID: {sessionId}
+          </div>
+
           {/* Overall Progress */}
           <div className="space-y-2">
             <div className="flex justify-between items-center">
@@ -226,8 +249,8 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
               <div className="space-y-3">
                 {[
                   { name: 'Web Search', description: 'Finding company websites', icon: <Search className="h-4 w-4" />, range: [0, 25] },
-                  { name: 'LinkedIn Discovery', description: 'Extracting LinkedIn profiles', icon: <Building className="h-4 w-4" />, range: [25, 50] },
-                  { name: 'AI Enrichment', description: 'Filling data gaps with AI', icon: <Brain className="h-4 w-4" />, range: [50, 85] },
+                  { name: 'LinkedIn Discovery', description: 'Enhanced LinkedIn profile search', icon: <Building className="h-4 w-4" />, range: [25, 60] },
+                  { name: 'AI Enrichment', description: 'Filling data gaps with AI', icon: <Brain className="h-4 w-4" />, range: [60, 85] },
                   { name: 'Contact Discovery', description: 'Finding key decision makers', icon: <Users className="h-4 w-4" />, range: [85, 100] }
                 ].map((step, index) => {
                   const isActive = progress >= step.range[0] && progress < step.range[1];
@@ -279,7 +302,7 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
                 <div className="space-y-1 font-mono text-xs">
                   {logs.length === 0 ? (
                     <div className="p-2 bg-muted/50 rounded text-muted-foreground">
-                      Waiting for updates...
+                      Waiting for updates from session {sessionId}...
                     </div>
                   ) : (
                     logs.map((log, index) => (

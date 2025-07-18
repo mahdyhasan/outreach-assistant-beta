@@ -65,12 +65,16 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
 
     // Generate unique session ID
     const newSessionId = `mining_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log('Starting mining with session ID:', newSessionId);
+    
     setSessionId(newSessionId);
     setIsRunning(true);
     setResults(null);
     setShowProgress(true);
 
     try {
+      console.log('Invoking enhanced-lead-mining function...');
+      
       const { data, error } = await supabase.functions.invoke('enhanced-lead-mining', {
         body: {
           industry: criteria.industry,
@@ -86,13 +90,12 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
         throw new Error(error.message || 'Failed to start mining process');
       }
 
-      // Set results but don't close progress dialog yet - let the progress tracker handle completion
+      console.log('Mining function response:', data);
       setResults(data);
       
     } catch (error: any) {
       console.error('Mining error:', error);
       
-      // Show detailed error information
       let errorMessage = 'Unknown error occurred';
       if (error.message) {
         errorMessage = error.message;
@@ -112,6 +115,7 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
   };
 
   const handleProgressComplete = (results: any) => {
+    console.log('Progress completed with results:', results);
     setIsRunning(false);
     setShowProgress(false);
     
@@ -127,7 +131,6 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
     if (!open && !isRunning) {
       setShowProgress(false);
     } else if (!open && isRunning) {
-      // Don't allow closing while mining is in progress
       toast({
         title: "Mining in Progress",
         description: "Please wait for the mining process to complete",

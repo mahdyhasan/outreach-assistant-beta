@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,8 @@ import { AutomatedScraping } from '@/components/mining/automated-scraping';
 import { HybridMining } from '@/components/mining/hybrid-mining';
 import { PendingReview } from '@/components/mining/pending-review';
 import { MiningSettings } from '@/components/mining/mining-settings';
-import { Upload, Bot, GitMerge, Settings, Clock } from 'lucide-react';
+import { MiningSessionTracker } from '@/components/mining/mining-session-tracker';
+import { Upload, Bot, GitMerge, Settings, Clock, Activity } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useMiningSettings } from '@/hooks/use-mining-settings';
 import { useSettings } from '@/hooks/use-settings';
@@ -77,7 +79,7 @@ const LeadMining = () => {
 
             <div className="px-6">
               <Tabs defaultValue="automated" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                   <TabsTrigger value="manual" className="flex items-center gap-2">
                     <Upload className="h-4 w-4" />
                     Manual Import
@@ -93,6 +95,10 @@ const LeadMining = () => {
                   <TabsTrigger value="review" className="flex items-center gap-2">
                     <Clock className="h-4 w-4" />
                     Review Queue
+                  </TabsTrigger>
+                  <TabsTrigger value="sessions" className="flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Sessions
                   </TabsTrigger>
                   <TabsTrigger value="settings" className="flex items-center gap-2">
                     <Settings className="h-4 w-4" />
@@ -153,6 +159,10 @@ const LeadMining = () => {
                       />
                     </CardContent>
                   </Card>
+                </TabsContent>
+
+                <TabsContent value="sessions" className="space-y-6">
+                  <MiningSessionTracker />
                 </TabsContent>
 
                 <TabsContent value="settings" className="space-y-6">
