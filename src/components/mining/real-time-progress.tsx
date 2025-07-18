@@ -249,8 +249,8 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
               <div className="space-y-3">
                 {[
                   { name: 'Web Search', description: 'Finding company websites', icon: <Search className="h-4 w-4" />, range: [0, 25] },
-                  { name: 'LinkedIn Discovery', description: 'Enhanced LinkedIn profile search', icon: <Building className="h-4 w-4" />, range: [25, 60] },
-                  { name: 'AI Enrichment', description: 'Filling data gaps with AI', icon: <Brain className="h-4 w-4" />, range: [60, 85] },
+                  { name: 'LinkedIn Discovery', description: 'Enhanced LinkedIn profile search', icon: <Building className="h-4 w-4" />, range: [25, 65] },
+                  { name: 'AI Enrichment', description: 'Filling data gaps with AI', icon: <Brain className="h-4 w-4" />, range: [65, 85] },
                   { name: 'Contact Discovery', description: 'Finding key decision makers', icon: <Users className="h-4 w-4" />, range: [85, 100] }
                 ].map((step, index) => {
                   const isActive = progress >= step.range[0] && progress < step.range[1];

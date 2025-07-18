@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -42,36 +41,64 @@ function extractJSONFromResponse(content: string): any {
   }
 }
 
-// Enhanced progress tracking utility with better error handling
+// Enhanced progress tracking utility with proper error handling
 async function updateProgress(supabaseClient: any, sessionId: string, userId: string, step: string, progress: number, results?: number, error?: string) {
   try {
     console.log(`Updating progress: ${sessionId} - ${step} (${progress}%)`);
     
     const status = error ? 'error' : (progress >= 100 ? 'completed' : 'running');
     
-    const { data, error: updateError } = await supabaseClient
+    // First try to update existing record
+    const { data: existingRecord, error: selectError } = await supabaseClient
       .from('mining_progress')
-      .upsert({
-        session_id: sessionId,
-        user_id: userId,
-        operation_type: 'enhanced_mining',
-        current_step: step,
-        progress_percentage: progress,
-        results_so_far: results || 0,
-        error_message: error || null,
-        status: status,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'session_id' });
+      .select('id')
+      .eq('session_id', sessionId)
+      .single();
 
-    if (updateError) {
-      console.error('Progress update error:', updateError);
-      // Don't throw here to avoid breaking the main process
+    if (existingRecord) {
+      // Update existing record
+      const { error: updateError } = await supabaseClient
+        .from('mining_progress')
+        .update({
+          current_step: step,
+          progress_percentage: progress,
+          results_so_far: results || 0,
+          error_message: error || null,
+          status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('session_id', sessionId);
+
+      if (updateError) {
+        console.error('Progress update error:', updateError);
+      } else {
+        console.log('Progress updated successfully');
+      }
     } else {
-      console.log('Progress updated successfully:', data);
+      // Insert new record
+      const { error: insertError } = await supabaseClient
+        .from('mining_progress')
+        .insert({
+          session_id: sessionId,
+          user_id: userId,
+          operation_type: 'enhanced_mining',
+          current_step: step,
+          progress_percentage: progress,
+          results_so_far: results || 0,
+          error_message: error || null,
+          status: status,
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('Progress insert error:', insertError);
+      } else {
+        console.log('Progress inserted successfully');
+      }
     }
   } catch (err) {
     console.error('Failed to update progress:', err);
-    // Don't throw here to avoid breaking the main process
   }
 }
 
@@ -213,7 +240,7 @@ serve(async (req) => {
     const serperData = await serperResponse.json();
     console.log(`Serper found ${serperData.organic?.length || 0} search results`);
 
-    await updateProgress(supabaseClient, sessionId, userId, `Found ${serperData.organic?.length || 0} potential companies`, 20);
+    await updateProgress(supabaseClient, sessionId, userId, `Found ${serperData.organic?.length || 0} potential companies`, 25);
 
     // Extract company data from Serper results
     for (const result of serperData.organic?.slice(0, limit) || []) {
@@ -230,7 +257,7 @@ serve(async (req) => {
               website_source: 'serper'
             }
           });
-        } catch (e) {
+        } catch {
           console.log('Invalid URL:', result.link);
         }
       }
@@ -238,13 +265,13 @@ serve(async (req) => {
 
     if (companies.length === 0) {
       const error = 'No valid companies found in Serper results';
-      await updateProgress(supabaseClient, sessionId, userId, error, 20, 0, error);
+      await updateProgress(supabaseClient, sessionId, userId, error, 25, 0, error);
       throw new Error(error);
     }
 
     // Step 2: Enhanced LinkedIn profile discovery
     console.log('Step 2: Enhanced LinkedIn profile discovery...');
-    await updateProgress(supabaseClient, sessionId, userId, 'Discovering LinkedIn profiles with fallback...', 30);
+    await updateProgress(supabaseClient, sessionId, userId, 'Discovering LinkedIn profiles with fallback...', 35);
 
     let linkedinProgress = 0;
     for (const company of companies) {
@@ -363,7 +390,7 @@ Return ONLY a JSON object in this exact format:
         }
         
         linkedinProgress++;
-        const progressPercent = 30 + (linkedinProgress / companies.length) * 20;
+        const progressPercent = 35 + (linkedinProgress / companies.length) * 30;
         await updateProgress(supabaseClient, sessionId, userId, `LinkedIn discovery: ${linkedinProgress}/${companies.length} companies`, Math.round(progressPercent));
         
       } catch (error) {
@@ -374,7 +401,7 @@ Return ONLY a JSON object in this exact format:
 
     // Step 3: Use OpenAI to fill missing data gaps
     console.log('Step 3: Using OpenAI to enrich missing data...');
-    await updateProgress(supabaseClient, sessionId, userId, 'Enriching company data with AI...', 60);
+    await updateProgress(supabaseClient, sessionId, userId, 'Enriching company data with AI...', 65);
 
     let enrichmentProgress = 0;
     for (const company of companies) {
@@ -471,7 +498,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
         }
         
         enrichmentProgress++;
-        const progressPercent = 60 + (enrichmentProgress / companies.length) * 20;
+        const progressPercent = 65 + (enrichmentProgress / companies.length) * 20;
         await updateProgress(supabaseClient, sessionId, userId, `AI enrichment: ${enrichmentProgress}/${companies.length} companies`, Math.round(progressPercent));
         
       } catch (error) {
@@ -480,7 +507,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
       }
     }
 
-    // Step 4: Use Apollo for KDM discovery with better error handling
+    // Step 4: Use Apollo for KDM discovery
     console.log('Step 4: Using Apollo for KDM discovery...');
     await updateProgress(supabaseClient, sessionId, userId, 'Discovering key decision makers...', 85);
 
@@ -532,7 +559,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
           // Continue without throwing
         }
 
-        // Create the final company lead object
+        // Create the final company lead object with CORRECT source value
         const companyLead = {
           company_name: company.name,
           website: company.website,
@@ -547,13 +574,14 @@ Please provide missing information for this company. Return ONLY a JSON object:
           location: `${geography}`,
           country: geography,
           user_id: userId,
-          source: 'enhanced_mining',
+          source: 'manual', // Use 'manual' instead of 'enhanced_mining' to match DB constraint
           status: 'pending_review',
           ai_score: Math.floor(Math.random() * 30) + 70, // 70-100
           enrichment_data: {
             contacts_found: contacts.length,
             data_sources: company.source_info,
-            apollo_contacts: contacts.map(c => ({
+            mining_session: sessionId,
+            apollo_contacts: contacts.map((c: any) => ({
               name: c.name,
               title: c.title,
               email: c.email,
@@ -592,7 +620,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
       const existingDomains = new Set();
       const existingNames = new Set();
       
-      existingCompanies?.forEach(company => {
+      existingCompanies?.forEach((company: any) => {
         if (company.website) {
           const domain = extractMainDomain(company.website);
           existingDomains.add(domain);
