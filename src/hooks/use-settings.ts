@@ -191,12 +191,14 @@ Always use the contact's first name in greeting.`,
           setApiKeys([...mergedKeys, ...customKeys]);
         }
 
-        if (userSettings.mining_preferences?.rateLimits) {
-          setRateLimits(userSettings.mining_preferences.rateLimits as RateLimits);
-        }
-
-        if (userSettings.mining_preferences?.dataSourcePriority) {
-          setDataSourcePriority(userSettings.mining_preferences.dataSourcePriority as DataSourcePriority);
+        if (userSettings.mining_preferences && typeof userSettings.mining_preferences === 'object') {
+          const miningPrefs = userSettings.mining_preferences as any;
+          if (miningPrefs.rateLimits) {
+            setRateLimits(miningPrefs.rateLimits as RateLimits);
+          }
+          if (miningPrefs.dataSourcePriority) {
+            setDataSourcePriority(miningPrefs.dataSourcePriority as DataSourcePriority);
+          }
         }
 
         if (userSettings.scoring_weights) {
