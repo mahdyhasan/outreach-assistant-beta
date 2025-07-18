@@ -27,7 +27,8 @@ import {
 const items = [
   { title: "Dashboard", url: "/", icon: Activity },
   { title: "Lead Management", url: "/leads", icon: Database },
-  { title: "Lead Mining", url: "/mining", icon: Users },
+  { title: "KDM Management", url: "/kdm", icon: Users },
+  { title: "Lead Mining", url: "/mining", icon: Target },
   { title: "Email Queue", url: "/email-queue", icon: Mail },
   { title: "Email Campaigns", url: "/email-campaigns", icon: MessageSquare },
   { title: "Export Leads", url: "/export", icon: Download },

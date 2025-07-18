@@ -9,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { CompanyLead } from "@/hooks/use-supabase-leads";
-import { Building2, User, Signal, Globe, Phone, Mail, Calendar, TrendingUp, UserPlus } from "lucide-react";
+import { Building2, User, Signal, Globe, Phone, Mail, Calendar, TrendingUp, UserPlus, Edit, Linkedin } from "lucide-react";
 import { AddDecisionMakerDialog } from "./AddDecisionMakerDialog";
+import { EditKDMDialog } from "../kdm/EditKDMDialog";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -23,6 +24,8 @@ interface LeadDetailsDialogProps {
 
 export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadDetailsDialogProps) {
   const [showAddDecisionMaker, setShowAddDecisionMaker] = useState(false);
+  const [showEditKDM, setShowEditKDM] = useState(false);
+  const [selectedKDM, setSelectedKDM] = useState<any>(null);
 
   if (!lead) return null;
 
@@ -141,33 +144,73 @@ export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadD
               {lead.decision_makers && lead.decision_makers.length > 0 ? (
                 <div className="space-y-4">
                   {lead.decision_makers.map((dm) => (
-                    <div key={dm.id} className="border rounded-lg p-3">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={dm.id} className="border rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="font-semibold">{dm.first_name} {dm.last_name}</p>
                           <p className="text-sm text-muted-foreground">{dm.designation}</p>
                         </div>
-                        <Badge variant="outline" className="text-xs">
-                          {dm.contact_type}
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs">
+                            {dm.contact_type}
+                          </Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedKDM(dm);
+                              setShowEditKDM(true);
+                            }}
+                            className="h-6 w-6 p-0"
+                          >
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
-                      <div className="space-y-1 text-sm">
+                      
+                      <div className="space-y-2 text-sm">
                         {dm.email && (
-                          <p className="flex items-center gap-2">
-                            <Mail className="h-3 w-3" />
-                            {dm.email}
-                          </p>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Mail className="h-3 w-3" />
+                              <span>{dm.email}</span>
+                            </div>
+                            {dm.email_status && (
+                              <Badge variant="outline" className="text-xs">
+                                {dm.email_status.replace('_', ' ')}
+                              </Badge>
+                            )}
+                          </div>
                         )}
+                        
                         {dm.phone && (
-                          <p className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <Phone className="h-3 w-3" />
-                            {dm.phone}
-                          </p>
+                            <span>{dm.phone}</span>
+                          </div>
+                        )}
+                        
+                        {dm.linkedin_profile && (
+                          <div className="flex items-center gap-2">
+                            <Linkedin className="h-3 w-3" />
+                            <a 
+                              href={dm.linkedin_profile} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-primary hover:underline text-xs"
+                            >
+                              LinkedIn Profile
+                            </a>
+                          </div>
                         )}
                       </div>
-                      <div className="mt-2">
+                      
+                      <div className="mt-3 flex justify-between items-center">
                         <p className="text-xs text-muted-foreground">
-                          Confidence: {dm.confidence_score}%
+                          Confidence: {dm.confidence_score || 0}%
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Added: {new Date(dm.created_at).toLocaleDateString()}
                         </p>
                       </div>
                     </div>
@@ -227,6 +270,18 @@ export function LeadDetailsDialog({ open, onOpenChange, lead, onRefresh }: LeadD
           companyId={lead.id}
           onSuccess={() => {
             onRefresh?.();
+          }}
+        />
+
+        {/* Edit KDM Dialog */}
+        <EditKDMDialog
+          open={showEditKDM}
+          onOpenChange={setShowEditKDM}
+          kdm={selectedKDM}
+          onSuccess={() => {
+            onRefresh?.();
+            setShowEditKDM(false);
+            setSelectedKDM(null);
           }}
         />
       </DialogContent>

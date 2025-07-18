@@ -49,56 +49,59 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="search">Search Companies</Label>
+    <div className="flex flex-wrap items-center gap-4 p-4 bg-muted/30 rounded-lg">
+      {/* Search - compact input */}
+      <div className="flex items-center gap-2 min-w-[200px]">
+        <Label htmlFor="search" className="text-sm font-medium whitespace-nowrap">Search:</Label>
         <Input
           id="search"
-          placeholder="Search by company name..."
+          placeholder="Company name..."
           value={filters.search}
           onChange={(e) => updateFilters('search', e.target.value)}
+          className="h-8"
         />
       </div>
 
-      <div className="space-y-2">
-        <Label>Status</Label>
-        <div className="space-y-2">
-          {statusOptions.map((option) => (
-            <div key={option.value} className="flex items-center space-x-2">
-              <Checkbox
-                id={`status-${option.value}`}
-                checked={filters.status.includes(option.value)}
-                onCheckedChange={() => toggleArrayFilter('status', option.value)}
-              />
-              <Label htmlFor={`status-${option.value}`} className="text-sm">
+      {/* Status - compact dropdown */}
+      <div className="flex items-center gap-2">
+        <Label className="text-sm font-medium whitespace-nowrap">Status:</Label>
+        <Select value={filters.status.join(',')} onValueChange={(value) => updateFilters('status', value ? value.split(',') : [])}>
+          <SelectTrigger className="w-[140px] h-8">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All Status</SelectItem>
+            {statusOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
                 {option.label}
-              </Label>
-            </div>
-          ))}
-        </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label>Source</Label>
-        <div className="space-y-2">
-          {sourceOptions.map((option) => (
-            <div key={option.value} className="flex items-center space-x-2">
-              <Checkbox
-                id={`source-${option.value}`}
-                checked={filters.source.includes(option.value)}
-                onCheckedChange={() => toggleArrayFilter('source', option.value)}
-              />
-              <Label htmlFor={`source-${option.value}`} className="text-sm">
+      {/* Source - compact dropdown */}
+      <div className="flex items-center gap-2">
+        <Label className="text-sm font-medium whitespace-nowrap">Source:</Label>
+        <Select value={filters.source.join(',')} onValueChange={(value) => updateFilters('source', value ? value.split(',') : [])}>
+          <SelectTrigger className="w-[120px] h-8">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All Sources</SelectItem>
+            {sourceOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
                 {option.label}
-              </Label>
-            </div>
-          ))}
-        </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label>AI Score Range</Label>
-        <div className="px-2">
+      {/* Score Range - compact slider */}
+      <div className="flex items-center gap-2 min-w-[160px]">
+        <Label className="text-sm font-medium whitespace-nowrap">Score:</Label>
+        <div className="flex-1">
           <Slider
             value={filters.scoreRange}
             onValueChange={(value) => updateFilters('scoreRange', value as [number, number])}
@@ -107,7 +110,7 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
             step={1}
             className="w-full"
           />
-          <div className="flex justify-between text-sm text-muted-foreground mt-1">
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
             <span>{filters.scoreRange[0]}%</span>
             <span>{filters.scoreRange[1]}%</span>
           </div>

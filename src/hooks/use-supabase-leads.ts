@@ -30,6 +30,7 @@ export interface DecisionMaker {
   last_name: string;
   designation: string;
   email?: string;
+  email_status?: string;
   phone?: string;
   linkedin_profile?: string;
   facebook_profile?: string;

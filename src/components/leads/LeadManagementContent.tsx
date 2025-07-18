@@ -85,15 +85,7 @@ export function LeadManagementContent() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          <CardDescription>Filter and search through your leads</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LeadFilters filters={filters} onFiltersChange={setFilters} />
-        </CardContent>
-      </Card>
+      <LeadFilters filters={filters} onFiltersChange={setFilters} />
 
       <BulkActionsBar 
         selectedLeads={selectedLeads}

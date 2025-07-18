@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { Auth } from "@/pages/Auth";
 import Index from "./pages/Index";
 import LeadManagement from "./pages/LeadManagement";
+import KDMManagement from "./pages/KDMManagement";
 import LeadMining from "./pages/LeadMining";
 import EmailCampaigns from "./pages/EmailCampaigns";
 import EmailQueue from "./pages/EmailQueue";
@@ -27,6 +28,7 @@ function App() {
           {/* Protected routes */}
           <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
           <Route path="/leads" element={<AuthGuard><LeadManagement /></AuthGuard>} />
+          <Route path="/kdm" element={<AuthGuard><KDMManagement /></AuthGuard>} />
           <Route path="/mining" element={<AuthGuard><LeadMining /></AuthGuard>} />
           <Route path="/email-campaigns" element={<AuthGuard><EmailCampaigns /></AuthGuard>} />
           <Route path="/email-queue" element={<AuthGuard><EmailQueue /></AuthGuard>} />
