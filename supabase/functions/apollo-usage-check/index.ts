@@ -30,12 +30,13 @@ serve(async (req) => {
 
     console.log('Checking Apollo API usage...');
 
-    const response = await fetch('https://api.apollo.io/v1/usage', {
-      method: 'GET',
+    const response = await fetch('https://api.apollo.io/api/v1/usage_stats/api_usage_stats', {
+      method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Api-Key': apolloApiKey
-      }
+        'Authorization': `Bearer ${apolloApiKey}`
+      },
+      body: JSON.stringify({})
     });
 
     if (!response.ok) {
