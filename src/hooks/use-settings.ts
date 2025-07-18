@@ -9,7 +9,7 @@ interface APIKey {
   key: string;
   description: string;
   isActive: boolean;
-  customName?: string; // For custom APIs
+  customName?: string;
   // Zoho Email specific fields
   emailHost?: string;
   emailUsername?: string;
@@ -17,6 +17,24 @@ interface APIKey {
   imapHost?: string;
   imapUsername?: string;
   imapPassword?: string;
+}
+
+interface RateLimits {
+  serper: {
+    dailyRequests: number;
+    resultsPerQuery: number;
+  };
+  openai: {
+    dailyRequests: number;
+    maxTokensPerRequest: number;
+  };
+  apollo: {
+    maxCreditsPerCompany: number;
+    maxKDMsPerCompany: number;
+    enableCreditWarnings: boolean;
+    creditThreshold: number;
+    autoStopOnLowCredits: boolean;
+  };
 }
 
 interface ScoringWeights {
@@ -46,11 +64,10 @@ interface MiningSettings {
   frequency: string;
 }
 
-interface ApolloSettings {
-  maxCreditsPerCompany: number;
-  enableCreditWarnings: boolean;
-  creditThreshold: number;
-  autoStopOnLowCredits: boolean;
+interface DataSourcePriority {
+  companyInfo: string[];
+  contactInfo: string[];
+  socialProfiles: string[];
 }
 
 export function useSettings() {
@@ -60,10 +77,34 @@ export function useSettings() {
   // Initialize with default API keys
   const [apiKeys, setApiKeys] = useState<APIKey[]>([
     { id: 'apollo', name: 'Apollo', key: '', description: 'Lead discovery and company data', isActive: false },
-    { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered email generation', isActive: false },
-    { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data enrichment', isActive: false },
+    { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered data enrichment', isActive: false },
+    { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data discovery', isActive: false },
     { id: 'zoho-email', name: 'Zoho Email', key: '', description: 'Email automation platform', isActive: false }
   ]);
+  
+  const [rateLimits, setRateLimits] = useState<RateLimits>({
+    serper: {
+      dailyRequests: 100,
+      resultsPerQuery: 10
+    },
+    openai: {
+      dailyRequests: 50,
+      maxTokensPerRequest: 500
+    },
+    apollo: {
+      maxCreditsPerCompany: 5,
+      maxKDMsPerCompany: 2,
+      enableCreditWarnings: true,
+      creditThreshold: 20,
+      autoStopOnLowCredits: true
+    }
+  });
+
+  const [dataSourcePriority, setDataSourcePriority] = useState<DataSourcePriority>({
+    companyInfo: ['serper', 'openai', 'apollo'],
+    contactInfo: ['serper', 'openai', 'apollo'],
+    socialProfiles: ['serper', 'openai', 'apollo']
+  });
   
   const [scoringWeights, setScoringWeights] = useState<ScoringWeights>({
     companySize: 30,
@@ -96,12 +137,6 @@ Always use the contact's first name in greeting.`,
     autoApprovalThreshold: 70,
     frequency: 'daily'
   });
-  const [apolloSettings, setApolloSettings] = useState<ApolloSettings>({
-    maxCreditsPerCompany: 5,
-    enableCreditWarnings: true,
-    creditThreshold: 20,
-    autoStopOnLowCredits: true
-  });
   const [loading, setLoading] = useState(true);
 
   // Load settings from database on mount
@@ -133,16 +168,14 @@ Always use the contact's first name in greeting.`,
       }
 
       if (userSettings) {
-        // Parse API keys from JSONB - merge with defaults
         if (userSettings.api_keys) {
           const apiKeysData = userSettings.api_keys as Record<string, any>;
           const savedApiKeys = Object.values(apiKeysData) as APIKey[];
           
-          // Merge saved keys with defaults, updating existing ones
           const defaultKeys = [
             { id: 'apollo', name: 'Apollo', key: '', description: 'Lead discovery and company data', isActive: false },
-            { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered email generation', isActive: false },
-            { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data enrichment', isActive: false },
+            { id: 'openai', name: 'OpenAI', key: '', description: 'AI-powered data enrichment', isActive: false },
+            { id: 'serper', name: 'Serper', key: '', description: 'Real-time search and data discovery', isActive: false },
             { id: 'zoho-email', name: 'Zoho Email', key: '', description: 'Email automation platform', isActive: false }
           ];
           
@@ -151,7 +184,6 @@ Always use the contact's first name in greeting.`,
             return savedKey || defaultKey;
           });
           
-          // Add any custom keys that aren't in defaults
           const customKeys = savedApiKeys.filter(saved => 
             !defaultKeys.some(def => def.id === saved.id)
           );
@@ -159,17 +191,22 @@ Always use the contact's first name in greeting.`,
           setApiKeys([...mergedKeys, ...customKeys]);
         }
 
-        // Parse scoring weights
+        if (userSettings.mining_preferences?.rateLimits) {
+          setRateLimits(userSettings.mining_preferences.rateLimits as RateLimits);
+        }
+
+        if (userSettings.mining_preferences?.dataSourcePriority) {
+          setDataSourcePriority(userSettings.mining_preferences.dataSourcePriority as DataSourcePriority);
+        }
+
         if (userSettings.scoring_weights) {
           setScoringWeights(userSettings.scoring_weights as unknown as ScoringWeights);
         }
 
-        // Parse target countries
         if (userSettings.target_countries) {
           setTargetCountries(userSettings.target_countries as unknown as TargetCountries);
         }
 
-        // Set email settings
         setEmailSettings({
           signature: userSettings.email_signature || emailSettings.signature,
           emailPrompt: userSettings.email_prompt || emailSettings.emailPrompt,
@@ -178,7 +215,6 @@ Always use the contact's first name in greeting.`,
           replyMonitoring: userSettings.reply_monitoring ?? true
         });
 
-        // Set mining settings
         setMiningSettings({
           dailyLimit: userSettings.daily_limit || 100,
           autoApprovalThreshold: userSettings.auto_approval_threshold || 70,
@@ -218,7 +254,6 @@ Always use the contact's first name in greeting.`,
     }
     
     try {
-      // Convert API keys array to object format for JSONB
       const apiKeysObject = apiKeys.reduce((acc, key) => {
         acc[key.id] = key;
         return acc;
@@ -237,10 +272,12 @@ Always use the contact's first name in greeting.`,
         frequency: miningSettings.frequency,
         scoring_weights: scoringWeights as any,
         target_countries: targetCountries as any,
+        mining_preferences: {
+          rateLimits,
+          dataSourcePriority
+        } as any,
         updated_at: new Date().toISOString()
       };
-
-      // Saving settings data
 
       const { error } = await supabase
         .from('user_settings')
@@ -277,20 +314,22 @@ Always use the contact's first name in greeting.`,
   return {
     // State
     apiKeys,
+    rateLimits,
+    dataSourcePriority,
     scoringWeights,
     targetCountries,
     emailSettings,
     miningSettings,
-    apolloSettings,
     loading,
     
     // Setters
     setApiKeys,
+    setRateLimits,
+    setDataSourcePriority,
     setScoringWeights,
     setTargetCountries,
     setEmailSettings,
     setMiningSettings,
-    setApolloSettings,
     
     // Utilities
     getApiKey,

@@ -12,13 +12,14 @@ import { MiningSettings } from '@/components/mining/mining-settings';
 import { Upload, Bot, GitMerge, Settings, Clock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useMiningSettings } from '@/hooks/use-mining-settings';
+import { useSettings } from '@/hooks/use-settings';
 import { Loader2 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ui/error-boundary';
 
 const LeadMining = () => {
   const { settings, dailyStats, loading, updateSettings, updateDailyStats } = useMiningSettings();
+  const { rateLimits, setRateLimits } = useSettings();
 
-  
   if (loading) {
     return (
       <SidebarProvider>
@@ -40,7 +41,7 @@ const LeadMining = () => {
 
   const dailyScrapedToday = dailyStats?.companies_scraped || 0;
   const dailyLimit = settings?.daily_limit || 100;
-  const pendingCount = 0; // Will be calculated from actual pending companies
+  const pendingCount = 0;
 
   return (
     <SidebarProvider>
@@ -56,10 +57,10 @@ const LeadMining = () => {
                   <div>
                     <h1 className="text-3xl font-bold flex items-center gap-3">
                       <Bot className="h-8 w-8 text-primary" />
-                      Lead Mining Hub
+                      Enhanced Lead Mining Hub
                     </h1>
                     <p className="text-muted-foreground mt-2">
-                      Import, scrape, and enrich leads automatically
+                      Multi-source lead discovery with Serper, OpenAI, and Apollo integration
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -75,101 +76,103 @@ const LeadMining = () => {
             </div>
 
             <div className="px-6">
-              <Tabs defaultValue="manual" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <Upload className="h-4 w-4" />
-              Manual Import
-            </TabsTrigger>
-            <TabsTrigger value="automated" className="flex items-center gap-2">
-              <Bot className="h-4 w-4" />
-              Auto Scraping
-            </TabsTrigger>
-            <TabsTrigger value="hybrid" className="flex items-center gap-2">
-              <GitMerge className="h-4 w-4" />
-              Hybrid Mining
-            </TabsTrigger>
-            <TabsTrigger value="review" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Review Queue
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Settings
-            </TabsTrigger>
-          </TabsList>
+              <Tabs defaultValue="automated" className="space-y-6">
+                <TabsList className="grid w-full grid-cols-5">
+                  <TabsTrigger value="manual" className="flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    Manual Import
+                  </TabsTrigger>
+                  <TabsTrigger value="automated" className="flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    Enhanced Mining
+                  </TabsTrigger>
+                  <TabsTrigger value="hybrid" className="flex items-center gap-2">
+                    <GitMerge className="h-4 w-4" />
+                    Hybrid Mining
+                  </TabsTrigger>
+                  <TabsTrigger value="review" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Review Queue
+                  </TabsTrigger>
+                  <TabsTrigger value="settings" className="flex items-center gap-2">
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </TabsTrigger>
+                </TabsList>
 
-          <TabsContent value="manual" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Manual Lead Import</CardTitle>
-                <CardDescription>
-                  Upload CSV files or manually add company lists for enrichment
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <ManualImport onLeadsAdded={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <TabsContent value="manual" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Manual Lead Import</CardTitle>
+                      <CardDescription>
+                        Upload CSV files or manually add company lists for enrichment
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <ManualImport onLeadsAdded={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-          <TabsContent value="automated" className="space-y-6">
-            <ErrorBoundary>
-              <AutomatedScraping 
-                dailyScraped={dailyScrapedToday}
-                dailyLimit={dailyLimit}
-                onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })}
-              />
-            </ErrorBoundary>
-          </TabsContent>
+                <TabsContent value="automated" className="space-y-6">
+                  <ErrorBoundary>
+                    <AutomatedScraping 
+                      dailyScraped={dailyScrapedToday}
+                      dailyLimit={dailyLimit}
+                      onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })}
+                    />
+                  </ErrorBoundary>
+                </TabsContent>
 
-          <TabsContent value="hybrid" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Hybrid Lead Mining</CardTitle>
-                <CardDescription>
-                  Provide seed companies and let AI find similar prospects
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <HybridMining onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <TabsContent value="hybrid" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Hybrid Lead Mining</CardTitle>
+                      <CardDescription>
+                        Provide seed companies and let AI find similar prospects
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <HybridMining onLeadsFound={(count) => updateDailyStats({ companies_scraped: dailyScrapedToday + count })} />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-          <TabsContent value="review" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Pending Review</CardTitle>
-                <CardDescription>
-                  Review and approve mined leads before adding to your database
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PendingReview 
-                  pendingCount={pendingCount}
-                  onLeadsProcessed={(approved) => updateDailyStats({ companies_approved: (dailyStats?.companies_approved || 0) + approved })}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <TabsContent value="review" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Pending Review</CardTitle>
+                      <CardDescription>
+                        Review and approve mined leads before adding to your database
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <PendingReview 
+                        pendingCount={pendingCount}
+                        onLeadsProcessed={(approved) => updateDailyStats({ companies_approved: (dailyStats?.companies_approved || 0) + approved })}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
 
-          <TabsContent value="settings" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Mining Settings</CardTitle>
-                <CardDescription>
-                  Configure scraping limits, frequency, and ICP criteria
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <MiningSettings 
-                  settings={settings}
-                  onSettingsUpdate={updateSettings}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+                <TabsContent value="settings" className="space-y-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Enhanced Mining Settings</CardTitle>
+                      <CardDescription>
+                        Configure multi-source mining limits, API rate limits, and quality controls
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <MiningSettings 
+                        settings={settings}
+                        onSettingsUpdate={updateSettings}
+                        rateLimits={rateLimits}
+                        onRateLimitsChange={setRateLimits}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
               </Tabs>
             </div>
           </main>
