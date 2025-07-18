@@ -12,6 +12,7 @@ import { Bot, Play, AlertCircle, CheckCircle, Search, Brain, Zap } from 'lucide-
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings } from '@/hooks/use-settings';
+import { RealTimeProgress } from './real-time-progress';
 
 interface AutomatedScrapingProps {
   dailyScraped: number;
@@ -26,6 +27,8 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState('');
   const [results, setResults] = useState<any>(null);
+  const [showProgress, setShowProgress] = useState(false);
+  const [sessionId, setSessionId] = useState('');
   
   const [criteria, setCriteria] = useState({
     industry: '',
@@ -63,67 +66,72 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
       return;
     }
 
+    // Generate unique session ID
+    const newSessionId = `mining_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    setSessionId(newSessionId);
     setIsRunning(true);
     setProgress(0);
     setResults(null);
+    setShowProgress(true);
 
     try {
-      setCurrentStep('Step 1: Searching with Serper for company websites...');
-      setProgress(25);
+      setCurrentStep('Initializing enhanced mining process...');
+      setProgress(10);
 
       const { data, error } = await supabase.functions.invoke('enhanced-lead-mining', {
         body: {
           industry: criteria.industry,
           geography: criteria.geography,
           limit: criteria.limit,
-          rateLimits: rateLimits
+          rateLimits: rateLimits,
+          sessionId: newSessionId
         }
       });
 
       if (error) {
-        throw error;
+        console.error('Enhanced mining error:', error);
+        throw new Error(error.message || 'Failed to start mining process');
       }
 
-      setCurrentStep('Step 2: Finding LinkedIn profiles...');
-      setProgress(50);
-
-      // Simulate progress updates
-      setTimeout(() => {
-        setCurrentStep('Step 3: Enriching with OpenAI...');
-        setProgress(75);
-      }, 2000);
-
-      setTimeout(() => {
-        setCurrentStep('Step 4: Finding KDMs with Apollo...');
-        setProgress(90);
-      }, 4000);
-
-      setTimeout(() => {
-        setCurrentStep('Completed! Processing results...');
-        setProgress(100);
-        
-        setResults(data);
-        onLeadsFound(data.count || 0);
-
-        toast({
-          title: "Mining Completed",
-          description: `Found ${data.count || 0} new leads using multi-source enrichment`,
-        });
-        
-        setIsRunning(false);
-      }, 6000);
-
+      // Results are handled by the progress tracker
+      setResults(data);
+      
     } catch (error: any) {
       console.error('Mining error:', error);
+      
+      // Show detailed error information
+      let errorMessage = 'Unknown error occurred';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Mining Failed",
-        description: error.message || "Failed to mine leads",
+        description: errorMessage,
         variant: "destructive",
       });
+      
       setIsRunning(false);
       setProgress(0);
       setCurrentStep('');
+      setShowProgress(false);
     }
+  };
+
+  const handleProgressComplete = (results: any) => {
+    setIsRunning(false);
+    setShowProgress(false);
+    setProgress(100);
+    setCurrentStep('Completed!');
+    
+    onLeadsFound(results.totalResults || 0);
+    
+    toast({
+      title: "Mining Completed",
+      description: `Successfully found ${results.totalResults || 0} new leads`,
+    });
   };
 
   const remainingLimit = dailyLimit - dailyScraped;
@@ -295,6 +303,14 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
           )}
         </CardContent>
       </Card>
+
+      {/* Real-time Progress Dialog */}
+      <RealTimeProgress
+        open={showProgress}
+        onOpenChange={setShowProgress}
+        sessionId={sessionId}
+        onComplete={handleProgressComplete}
+      />
     </div>
   );
 };

@@ -18,6 +18,30 @@ function extractMainDomain(url: string): string {
   }
 }
 
+// Utility to extract JSON from OpenAI response (handles markdown wrapping)
+function extractJSONFromResponse(content: string): any {
+  if (!content) throw new Error('Empty response from OpenAI');
+  
+  try {
+    // First try direct parsing
+    return JSON.parse(content);
+  } catch {
+    // Try to extract JSON from markdown code blocks
+    const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[1]);
+    }
+    
+    // Try to find JSON object in the text
+    const objectMatch = content.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      return JSON.parse(objectMatch[0]);
+    }
+    
+    throw new Error('No valid JSON found in OpenAI response');
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -27,6 +51,7 @@ interface MiningRequest {
   industry: string;
   geography: string;
   limit: number;
+  sessionId?: string;
   rateLimits?: {
     serper?: { dailyRequests: number; resultsPerQuery: number };
     openai?: { dailyRequests: number; maxTokensPerRequest: number };
@@ -82,7 +107,7 @@ serve(async (req) => {
       }
     );
 
-    const { industry, geography, limit, rateLimits }: MiningRequest = await req.json();
+    const { industry, geography, limit, rateLimits, sessionId }: MiningRequest = await req.json();
     
     const serperApiKey = Deno.env.get('SERPER_API_KEY');
     const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -251,7 +276,7 @@ Return ONLY a JSON object with these fields (use null if not found):
           const content = openaiData.choices[0]?.message?.content;
           
           try {
-            const enrichedData = JSON.parse(content);
+            const enrichedData = extractJSONFromResponse(content);
             
             // Only update fields that are missing and found by OpenAI
             if (!company.employee_size && enrichedData.employee_size) {
@@ -329,6 +354,14 @@ Return ONLY a JSON object with these fields (use null if not found):
         if (peopleResponse.ok) {
           const peopleData = await peopleResponse.json();
           contacts = (peopleData.people || []).slice(0, maxKDMs);
+        } else {
+          const errorText = await peopleResponse.text();
+          console.error(`Apollo API error for ${company.name}:`, peopleResponse.status, errorText);
+          
+          // Don't fail the entire process for Apollo errors, just log and continue
+          if (peopleResponse.status === 401) {
+            console.error('Apollo authentication failed - check API key');
+          }
         }
 
         // Create the final company lead object
@@ -420,7 +453,27 @@ Return ONLY a JSON object with these fields (use null if not found):
 
         if (error) {
           console.error('Database insert error:', error);
-          throw error;
+          
+          // Return partial results even if database save fails
+          console.log('Returning partial results due to database error');
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              leads: enrichedLeads,
+              count: enrichedLeads.length,
+              warning: 'Some leads may not have been saved to database',
+              database_error: error.message,
+              sources_used: {
+                serper: true,
+                openai: true,
+                apollo: true
+              }
+            }),
+            { 
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+              status: 200 
+            }
+          );
         }
 
         console.log(`Successfully inserted ${data.length} unique companies into database`);
