@@ -46,6 +46,13 @@ interface MiningSettings {
   frequency: string;
 }
 
+interface ApolloSettings {
+  maxCreditsPerCompany: number;
+  enableCreditWarnings: boolean;
+  creditThreshold: number;
+  autoStopOnLowCredits: boolean;
+}
+
 export function useSettings() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -88,6 +95,12 @@ Always use the contact's first name in greeting.`,
     dailyLimit: 100,
     autoApprovalThreshold: 70,
     frequency: 'daily'
+  });
+  const [apolloSettings, setApolloSettings] = useState<ApolloSettings>({
+    maxCreditsPerCompany: 5,
+    enableCreditWarnings: true,
+    creditThreshold: 20,
+    autoStopOnLowCredits: true
   });
   const [loading, setLoading] = useState(true);
 
@@ -268,6 +281,7 @@ Always use the contact's first name in greeting.`,
     targetCountries,
     emailSettings,
     miningSettings,
+    apolloSettings,
     loading,
     
     // Setters
@@ -276,6 +290,7 @@ Always use the contact's first name in greeting.`,
     setTargetCountries,
     setEmailSettings,
     setMiningSettings,
+    setApolloSettings,
     
     // Utilities
     getApiKey,

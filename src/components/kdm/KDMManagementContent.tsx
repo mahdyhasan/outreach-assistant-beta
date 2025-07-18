@@ -4,6 +4,7 @@ import { KDMFilters } from "./KDMFilters";
 import { KDMDetailsDialog } from "./KDMDetailsDialog";
 import { EditKDMDialog } from "./EditKDMDialog";
 import { AddDecisionMakerDialog } from "../leads/AddDecisionMakerDialog";
+import { ApolloUsageCard } from "../analytics/ApolloUsageCard";
 import { useKDMManagement } from "@/hooks/use-kdm-management";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,10 @@ export function KDMManagementContent() {
       </div>
 
       <KDMFilters filters={filters} onFiltersChange={setFilters} />
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <ApolloUsageCard />
+      </div>
 
       <Card>
         <CardHeader>

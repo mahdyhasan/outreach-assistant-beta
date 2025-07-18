@@ -33,6 +33,89 @@ const corsHeaders = {
 
 interface KDMRequest {
   companyId: string;
+  maxCredits?: number; // Maximum credits user wants to spend
+}
+
+interface ApolloUsageResponse {
+  current_period_usage: {
+    contact_info_requests: number;
+    people_searches: number;
+  };
+  plan_limits: {
+    contact_info_requests: number;
+    people_searches: number;
+  };
+}
+
+// Track Apollo API usage
+async function trackApolloUsage(supabase: any, userId: string, apiName: string, creditsUsed: number = 1) {
+  const today = new Date().toISOString().split('T')[0];
+  
+  try {
+    await supabase
+      .from('api_usage_tracking')
+      .upsert({
+        user_id: userId,
+        api_name: apiName,
+        date: today,
+        daily_count: creditsUsed,
+        last_operation: 'kdm_discovery',
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,api_name,date',
+        ignoreDuplicates: false
+      });
+  } catch (error) {
+    console.error('Error tracking Apollo usage:', error);
+  }
+}
+
+// Get verified contact info from Apollo
+async function getVerifiedContactInfo(personId: string, apolloApiKey: string): Promise<any> {
+  try {
+    const response = await fetch(`https://api.apollo.io/v1/people/${personId}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache',
+        'X-Api-Key': apolloApiKey
+      }
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      return data.person;
+    } else {
+      console.error('Failed to get verified contact info:', await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('Error getting verified contact info:', error);
+    return null;
+  }
+}
+
+// Check Apollo usage
+async function checkApolloUsage(apolloApiKey: string): Promise<ApolloUsageResponse | null> {
+  try {
+    const response = await fetch('https://api.apollo.io/v1/usage', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Api-Key': apolloApiKey
+      }
+    });
+
+    if (response.ok) {
+      return await response.json();
+    } else {
+      console.error('Failed to check Apollo usage:', await response.text());
+      return null;
+    }
+  } catch (error) {
+    console.error('Error checking Apollo usage:', error);
+    return null;
+  }
 }
 
 // Prioritized list of titles to search in order
@@ -54,7 +137,7 @@ serve(async (req) => {
   }
 
   try {
-    const { companyId } = await req.json() as KDMRequest;
+    const { companyId, maxCredits = 10 } = await req.json() as KDMRequest;
     
     if (!companyId) {
       throw new Error('Company ID is required');
@@ -71,10 +154,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Check Apollo usage first
+    const apolloUsage = await checkApolloUsage(apolloApiKey);
+    let remainingCredits = 0;
+    
+    if (apolloUsage) {
+      remainingCredits = apolloUsage.plan_limits.contact_info_requests - apolloUsage.current_period_usage.contact_info_requests;
+      console.log(`Apollo credits remaining: ${remainingCredits}`);
+      
+      if (remainingCredits < maxCredits) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Insufficient Apollo credits. Remaining: ${remainingCredits}, Required: ${maxCredits}`,
+          credits_remaining: remainingCredits,
+          credits_required: maxCredits
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 400
+        });
+      }
+    }
+
     // Get company data
     const { data: company, error: companyError } = await supabase
       .from('companies')
-      .select('*')
+      .select('*, user_id')
       .eq('id', companyId)
       .single();
 
@@ -98,6 +202,8 @@ serve(async (req) => {
     const selectedKDMs: any[] = [];
     const titlesSearched: string[] = [];
     const skippedDueToDuplication: string[] = [];
+    const skippedDueToUnverifiedEmail: string[] = [];
+    let creditsUsed = 0;
 
     // Get existing KDMs for this company to check for duplicates
     const { data: existingKDMs } = await supabase
@@ -110,8 +216,8 @@ serve(async (req) => {
 
     // Loop through each title in prioritized order
     for (const title of KDM_TITLES) {
-      if (selectedKDMs.length >= 2) {
-        break; // Stop once we have 2 KDMs
+      if (selectedKDMs.length >= 2 || creditsUsed >= maxCredits) {
+        break; // Stop once we have 2 KDMs or reached credit limit
       }
 
       titlesSearched.push(title);
@@ -153,6 +259,12 @@ serve(async (req) => {
           if (apolloData.people && apolloData.people.length > 0) {
             // Check each person returned
             for (const person of apolloData.people) {
+              // Stop if we've reached credit limit
+              if (creditsUsed >= maxCredits) {
+                console.log('Reached maximum credit limit');
+                break;
+              }
+
               // Check for duplicates
               const isDuplicateEmail = person.email && existingEmails.has(person.email);
               const isDuplicateLinkedin = person.linkedin_url && existingLinkedins.has(person.linkedin_url);
@@ -162,26 +274,54 @@ serve(async (req) => {
                 continue;
               }
 
-              // Add valid KDM
-              const kdm = {
-                company_id: companyId,
-                first_name: person.first_name || '',
-                last_name: person.last_name || '',
-                designation: person.title || title,
-                email: person.email,
-                linkedin_profile: person.linkedin_url,
-                contact_type: 'kdm',
-                confidence_score: 85
-              };
+              // Skip if no person ID for contact reveal
+              if (!person.id) {
+                console.log(`Skipping ${person.first_name} ${person.last_name} - no person ID`);
+                continue;
+              }
 
-              selectedKDMs.push(kdm);
-              
-              // Add to existing sets to prevent duplicates in same search
-              if (person.email) existingEmails.add(person.email);
-              if (person.linkedin_url) existingLinkedins.add(person.linkedin_url);
-              
-              console.log(`Added KDM: ${person.first_name} ${person.last_name} (${title})`);
-              break; // Stop checking this title once a valid KDM is added
+              // Get verified contact info (costs 1 credit)
+              console.log(`Getting verified contact info for ${person.first_name} ${person.last_name} (${person.id})`);
+              const verifiedPerson = await getVerifiedContactInfo(person.id, apolloApiKey);
+              creditsUsed++;
+
+              if (verifiedPerson && verifiedPerson.email && verifiedPerson.email_status === 'verified') {
+                // Check for duplicates with verified email
+                if (existingEmails.has(verifiedPerson.email)) {
+                  skippedDueToDuplication.push(`${verifiedPerson.first_name} ${verifiedPerson.last_name} (${title}) - Duplicate verified email`);
+                  continue;
+                }
+
+                // Add valid KDM with verified email
+                const kdm = {
+                  company_id: companyId,
+                  first_name: verifiedPerson.first_name || '',
+                  last_name: verifiedPerson.last_name || '',
+                  designation: verifiedPerson.title || title,
+                  email: verifiedPerson.email,
+                  phone: verifiedPerson.phone_number,
+                  linkedin_profile: verifiedPerson.linkedin_url,
+                  facebook_profile: verifiedPerson.facebook_url,
+                  contact_type: 'kdm',
+                  confidence_score: 90,
+                  email_status: 'verified'
+                };
+
+                selectedKDMs.push(kdm);
+                
+                // Add to existing sets to prevent duplicates in same search
+                existingEmails.add(verifiedPerson.email);
+                if (verifiedPerson.linkedin_url) existingLinkedins.add(verifiedPerson.linkedin_url);
+                
+                console.log(`Added verified KDM: ${verifiedPerson.first_name} ${verifiedPerson.last_name} (${title}) - ${verifiedPerson.email}`);
+                break; // Stop checking this title once a valid KDM is added
+              } else {
+                skippedDueToUnverifiedEmail.push(`${person.first_name} ${person.last_name} (${title}) - No verified email`);
+                console.log(`Skipped ${person.first_name} ${person.last_name} - no verified email`);
+              }
+
+              // Small delay between contact reveals
+              await new Promise(resolve => setTimeout(resolve, 200));
             }
           }
         } else {
@@ -194,6 +334,11 @@ serve(async (req) => {
       } catch (error) {
         console.error(`KDM search failed for title ${title}:`, error);
       }
+    }
+
+    // Track Apollo usage
+    if (creditsUsed > 0 && company.user_id) {
+      await trackApolloUsage(supabase, company.user_id, 'apollo_contact_reveals', creditsUsed);
     }
 
     // Insert selected KDMs
@@ -215,12 +360,16 @@ serve(async (req) => {
         kdms_saved: insertedKDMs?.length || 0,
         kdms: insertedKDMs?.map(kdm => ({
           name: `${kdm.first_name} ${kdm.last_name}`,
-          title: kdm.designation
+          title: kdm.designation,
+          email: kdm.email
         })) || [],
         titles_searched: titlesSearched,
         skipped_due_to_duplication: skippedDueToDuplication,
+        skipped_due_to_unverified_email: skippedDueToUnverifiedEmail,
+        credits_used: creditsUsed,
+        credits_remaining: remainingCredits - creditsUsed,
         company_name: company.company_name,
-        message: `Found and saved ${insertedKDMs?.length || 0} key decision makers`
+        message: `Found and saved ${insertedKDMs?.length || 0} key decision makers using ${creditsUsed} Apollo credits`
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -232,8 +381,13 @@ serve(async (req) => {
       kdms: [],
       titles_searched: titlesSearched,
       skipped_due_to_duplication: skippedDueToDuplication,
+      skipped_due_to_unverified_email: skippedDueToUnverifiedEmail,
+      credits_used: creditsUsed,
+      credits_remaining: remainingCredits - creditsUsed,
       company_name: company.company_name,
-      message: 'No new KDMs found for this company'
+      message: creditsUsed > 0 ? 
+        `No new verified KDMs found after using ${creditsUsed} Apollo credits` :
+        'No KDMs found using search API only'
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
