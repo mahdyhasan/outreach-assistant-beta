@@ -64,24 +64,41 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
         throw new Error('All companies in the file are duplicates');
       }
 
-      // Save valid companies to database
+      // Enrich companies using the enhanced mining function
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const companiesData = validCompanies.map(company => ({
-        ...company,
-        user_id: user.id,
-        source: 'manual',
-        status: 'pending_review',
-        ai_score: 0,
-        enrichment_data: {},
-      }));
+      // Use enhanced mining to enrich the companies
+      const { data: enrichmentData, error: enrichmentError } = await supabase.functions.invoke('enhanced-lead-mining', {
+        body: {
+          companies: validCompanies.map(company => ({
+            company_name: company.company_name,
+            website: company.website,
+            industry: company.industry,
+            location: company.location
+          })),
+          source: 'manual'
+        }
+      });
 
-      const { error } = await supabase
-        .from('companies')
-        .insert(companiesData);
+      if (enrichmentError) {
+        console.error('Enrichment error:', enrichmentError);
+        // Fallback to basic insertion if enrichment fails
+        const companiesData = validCompanies.map(company => ({
+          ...company,
+          user_id: user.id,
+          source: 'manual',
+          status: 'pending_review',
+          ai_score: 0,
+          enrichment_data: {},
+        }));
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('companies')
+          .insert(companiesData);
+
+        if (error) throw error;
+      }
 
       onLeadsAdded(validCompanies.length);
       
@@ -143,24 +160,41 @@ export const ManualImport = ({ onLeadsAdded }: ManualImportProps) => {
         throw new Error('All companies are duplicates');
       }
 
-      // Save valid companies to database
+      // Enrich companies using the enhanced mining function
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const companiesData = validCompanies.map(company => ({
-        ...company,
-        user_id: user.id,
-        source: 'manual',
-        status: 'pending_review',
-        ai_score: 0,
-        enrichment_data: {},
-      }));
+      // Use enhanced mining to enrich the companies
+      const { data: enrichmentData, error: enrichmentError } = await supabase.functions.invoke('enhanced-lead-mining', {
+        body: {
+          companies: validCompanies.map(company => ({
+            company_name: company.company_name,
+            website: company.website,
+            industry: company.industry,
+            location: company.location
+          })),
+          source: 'manual'
+        }
+      });
 
-      const { error } = await supabase
-        .from('companies')
-        .insert(companiesData);
+      if (enrichmentError) {
+        console.error('Enrichment error:', enrichmentError);
+        // Fallback to basic insertion if enrichment fails
+        const companiesData = validCompanies.map(company => ({
+          ...company,
+          user_id: user.id,
+          source: 'manual',
+          status: 'pending_review',
+          ai_score: 0,
+          enrichment_data: {},
+        }));
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('companies')
+          .insert(companiesData);
+
+        if (error) throw error;
+      }
 
       onLeadsAdded(validCompanies.length);
       

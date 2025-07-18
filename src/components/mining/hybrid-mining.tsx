@@ -45,14 +45,16 @@ export const HybridMining = ({ onLeadsFound }: HybridMiningProps) => {
     setIsSearching(true);
     
     try {
-      // Use Serper API to find similar companies based on seed companies
-      const searchQuery = `companies similar to ${seedCompanies.join(', ')} ${similarityThreshold} match`;
-      
-      const { data, error } = await supabase.functions.invoke('apollo-company-search', {
+      // Use enhanced mining to find and enrich similar companies
+      const { data, error } = await supabase.functions.invoke('enhanced-lead-mining', {
         body: {
-          query: searchQuery,
-          limit: 50,
-          linkedin_query: `"${seedCompanies[0]}" competitors alternatives`
+          search_criteria: {
+            seed_companies: seedCompanies,
+            similarity_threshold: similarityThreshold,
+            limit: 50
+          },
+          source: 'hybrid',
+          operation_type: 'similarity_search'
         }
       });
 
