@@ -65,12 +65,12 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
       {/* Status - compact dropdown */}
       <div className="flex items-center gap-2">
         <Label className="text-sm font-medium whitespace-nowrap">Status:</Label>
-        <Select value={filters.status.join(',')} onValueChange={(value) => updateFilters('status', value ? value.split(',') : [])}>
+        <Select value={filters.status.length > 0 ? filters.status.join(',') : 'all'} onValueChange={(value) => updateFilters('status', value === 'all' ? [] : value.split(','))}>
           <SelectTrigger className="w-[140px] h-8">
-            <SelectValue placeholder="All" />
+            <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Status</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
             {statusOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
@@ -83,12 +83,12 @@ export function LeadFilters({ filters, onFiltersChange }: LeadFiltersProps) {
       {/* Source - compact dropdown */}
       <div className="flex items-center gap-2">
         <Label className="text-sm font-medium whitespace-nowrap">Source:</Label>
-        <Select value={filters.source.join(',')} onValueChange={(value) => updateFilters('source', value ? value.split(',') : [])}>
+        <Select value={filters.source.length > 0 ? filters.source.join(',') : 'all'} onValueChange={(value) => updateFilters('source', value === 'all' ? [] : value.split(','))}>
           <SelectTrigger className="w-[120px] h-8">
-            <SelectValue placeholder="All" />
+            <SelectValue placeholder="All Sources" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Sources</SelectItem>
+            <SelectItem value="all">All Sources</SelectItem>
             {sourceOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}

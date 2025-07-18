@@ -57,12 +57,12 @@ export function KDMFilters({ filters, onFiltersChange }: KDMFiltersProps) {
       {/* Contact Type */}
       <div className="flex items-center gap-2">
         <Label className="text-sm font-medium whitespace-nowrap">Type:</Label>
-        <Select value={filters.contactType.join(',')} onValueChange={(value) => updateFilters('contactType', value ? value.split(',') : [])}>
+        <Select value={filters.contactType.length > 0 ? filters.contactType.join(',') : 'all'} onValueChange={(value) => updateFilters('contactType', value === 'all' ? [] : value.split(','))}>
           <SelectTrigger className="w-[160px] h-8">
             <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Types</SelectItem>
+            <SelectItem value="all">All Types</SelectItem>
             {contactTypeOptions.map((option) => (
               <SelectItem key={option.value} value={option.value}>
                 {option.label}
