@@ -15,8 +15,11 @@ import {
   Clock,
   Users,
   Building,
-  AlertTriangle
+  AlertTriangle,
+  StopCircle
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface RealTimeProgressProps {
@@ -41,6 +44,9 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
   const [logs, setLogs] = useState<string[]>([]);
   const [isCompleted, setIsCompleted] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [sessionTimeout, setSessionTimeout] = useState(false);
+  const { toast } = useToast();
 
   // Real-time subscription for instant updates
   useEffect(() => {
@@ -87,7 +93,10 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
                   completedAt: newData.updated_at 
                 });
               }, 1000);
-            } else if (newData.status === 'error') {
+            } else if (newData.status === 'failed' || newData.status === 'error') {
+              setHasError(true);
+            } else if (newData.status === 'cancelled') {
+              setIsCancelling(false);
               setHasError(true);
             }
           }
@@ -154,7 +163,11 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
                 completedAt: data.updated_at 
               });
             }, 1000);
-          } else if (data.status === 'error') {
+          } else if (data.status === 'failed' || data.status === 'error') {
+            setHasError(true);
+            clearInterval(pollInterval);
+          } else if (data.status === 'cancelled') {
+            setIsCancelling(false);
             setHasError(true);
             clearInterval(pollInterval);
           }
@@ -170,20 +183,79 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
     // Poll every 2 seconds
     pollInterval = setInterval(pollProgress, 2000);
 
+    // Set up timeout for mining sessions (10 minutes max)
+    const timeoutTimer = setTimeout(() => {
+      if (!isCompleted && !hasError) {
+        console.warn(`[${sessionId}] Mining session timed out after 10 minutes`);
+        setSessionTimeout(true);
+        setHasError(true);
+        clearInterval(pollInterval);
+      }
+    }, 10 * 60 * 1000); // 10 minutes
+
     return () => {
       clearInterval(pollInterval);
+      clearTimeout(timeoutTimer);
     };
-  }, [open, sessionId, onComplete]);
+  }, [open, sessionId, onComplete, isCompleted, hasError]);
+
+  // Cancel mining session
+  const handleCancelMining = async () => {
+    if (isCancelling || isCompleted || hasError) return;
+
+    setIsCancelling(true);
+    
+    try {
+      console.log(`Cancelling mining session: ${sessionId}`);
+      
+      const { error } = await supabase
+        .from('mining_progress')
+        .update({ 
+          status: 'cancelled',
+          error_message: 'Cancelled by user',
+          current_step: 'Mining cancelled by user',
+          updated_at: new Date().toISOString()
+        })
+        .eq('session_id', sessionId);
+
+      if (error) {
+        console.error('Error cancelling mining session:', error);
+        toast({
+          title: "Cancellation Failed",
+          description: "Could not cancel the mining session. Please try again.",
+          variant: "destructive",
+        });
+        setIsCancelling(false);
+      } else {
+        toast({
+          title: "Mining Cancelled",
+          description: "The mining session has been cancelled successfully.",
+        });
+      }
+    } catch (error) {
+      console.error('Failed to cancel mining:', error);
+      toast({
+        title: "Cancellation Error", 
+        description: "An unexpected error occurred while cancelling.",
+        variant: "destructive",
+      });
+      setIsCancelling(false);
+    }
+  };
 
   const getStatusIcon = () => {
     if (hasError) return <XCircle className="h-5 w-5 text-red-500" />;
     if (isCompleted) return <CheckCircle className="h-5 w-5 text-green-500" />;
+    if (isCancelling) return <StopCircle className="h-5 w-5 text-orange-500" />;
     return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
   };
 
   const getStatusBadge = () => {
-    if (hasError) return <Badge className="bg-red-100 text-red-800">Error</Badge>;
+    if (sessionTimeout) return <Badge className="bg-orange-100 text-orange-800">Timeout</Badge>;
+    if (progressData?.status === 'cancelled') return <Badge className="bg-orange-100 text-orange-800">Cancelled</Badge>;
+    if (hasError) return <Badge className="bg-red-100 text-red-800">Failed</Badge>;
     if (isCompleted) return <Badge className="bg-green-100 text-green-800">Completed</Badge>;
+    if (isCancelling) return <Badge className="bg-orange-100 text-orange-800">Cancelling</Badge>;
     return <Badge className="bg-blue-100 text-blue-800">Running</Badge>;
   };
 
@@ -195,10 +267,23 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {getStatusIcon()}
-            Enhanced Lead Mining Progress
-            {getStatusBadge()}
+          <DialogTitle className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {getStatusIcon()}
+              Enhanced Lead Mining Progress
+              {getStatusBadge()}
+            </div>
+            {!isCompleted && !hasError && !isCancelling && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelMining}
+                className="text-red-600 hover:text-red-700"
+              >
+                <StopCircle className="h-4 w-4 mr-1" />
+                Cancel
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -316,21 +401,37 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
             </div>
           </div>
 
-          {/* Error Message */}
-          {hasError && progressData?.error_message && (
+          {/* Error/Status Messages */}
+          {hasError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
               <div className="flex items-center gap-2 text-red-800">
                 <XCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">Mining Failed</span>
+                <span className="text-sm font-medium">
+                  {sessionTimeout ? 'Mining Timed Out' : 
+                   progressData?.status === 'cancelled' ? 'Mining Cancelled' : 'Mining Failed'}
+                </span>
               </div>
               <div className="text-xs text-red-600 mt-1">
-                {progressData.error_message}
+                {sessionTimeout ? 'The mining session exceeded the 10-minute limit and was stopped.' :
+                 progressData?.error_message || 'An unexpected error occurred during mining.'}
+              </div>
+            </div>
+          )}
+
+          {isCancelling && (
+            <div className="p-3 bg-orange-50 border border-orange-200 rounded-md">
+              <div className="flex items-center gap-2 text-orange-800">
+                <StopCircle className="h-4 w-4" />
+                <span className="text-sm font-medium">Cancelling Mining Session...</span>
+              </div>
+              <div className="text-xs text-orange-600 mt-1">
+                Please wait while we stop the mining process safely.
               </div>
             </div>
           )}
 
           {/* Warning/Info Messages */}
-          {!isCompleted && !hasError && (
+          {!isCompleted && !hasError && !isCancelling && (
             <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
               <div className="flex items-center gap-2 text-blue-800">
                 <AlertTriangle className="h-4 w-4" />
@@ -340,6 +441,7 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
               </div>
               <div className="text-xs text-blue-600 mt-1">
                 This process may take 2-5 minutes depending on the number of results and API response times.
+                You can cancel the process at any time using the Cancel button above.
               </div>
             </div>
           )}

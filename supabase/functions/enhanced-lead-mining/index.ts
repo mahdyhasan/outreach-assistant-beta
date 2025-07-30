@@ -41,64 +41,61 @@ function extractJSONFromResponse(content: string): any {
   }
 }
 
-// Enhanced progress tracking utility with proper error handling
+// Enhanced progress tracking utility with proper error handling and cancellation support
 async function updateProgress(supabaseClient: any, sessionId: string, userId: string, step: string, progress: number, results?: number, error?: string) {
   try {
-    console.log(`Updating progress: ${sessionId} - ${step} (${progress}%)`);
+    console.log(`[${sessionId}] Updating progress: ${step} (${progress}%)`);
     
-    const status = error ? 'error' : (progress >= 100 ? 'completed' : 'running');
+    const status = error ? 'failed' : (progress >= 100 ? 'completed' : 'running');
+    const completedAt = status === 'completed' || status === 'failed' ? new Date().toISOString() : null;
     
-    // First try to update existing record
-    const { data: existingRecord, error: selectError } = await supabaseClient
+    // Use upsert to handle both insert and update cases
+    const { error: upsertError } = await supabaseClient
       .from('mining_progress')
-      .select('id')
-      .eq('session_id', sessionId)
-      .single();
+      .upsert({
+        session_id: sessionId,
+        user_id: userId,
+        operation_type: 'enhanced_mining',
+        current_step: step,
+        progress_percentage: Math.min(progress, 100),
+        results_so_far: results || 0,
+        error_message: error || null,
+        status: status,
+        started_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        completed_at: completedAt
+      }, {
+        onConflict: 'session_id,operation_type'
+      });
 
-    if (existingRecord) {
-      // Update existing record
-      const { error: updateError } = await supabaseClient
-        .from('mining_progress')
-        .update({
-          current_step: step,
-          progress_percentage: progress,
-          results_so_far: results || 0,
-          error_message: error || null,
-          status: status,
-          updated_at: new Date().toISOString()
-        })
-        .eq('session_id', sessionId);
-
-      if (updateError) {
-        console.error('Progress update error:', updateError);
-      } else {
-        console.log('Progress updated successfully');
-      }
+    if (upsertError) {
+      console.error(`[${sessionId}] Progress upsert error:`, upsertError);
     } else {
-      // Insert new record
-      const { error: insertError } = await supabaseClient
-        .from('mining_progress')
-        .insert({
-          session_id: sessionId,
-          user_id: userId,
-          operation_type: 'enhanced_mining',
-          current_step: step,
-          progress_percentage: progress,
-          results_so_far: results || 0,
-          error_message: error || null,
-          status: status,
-          started_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-
-      if (insertError) {
-        console.error('Progress insert error:', insertError);
-      } else {
-        console.log('Progress inserted successfully');
-      }
+      console.log(`[${sessionId}] Progress updated successfully: ${step} (${progress}%)`);
     }
   } catch (err) {
-    console.error('Failed to update progress:', err);
+    console.error(`[${sessionId}] Failed to update progress:`, err);
+  }
+}
+
+// Check if mining session should be cancelled
+async function checkCancellation(supabaseClient: any, sessionId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseClient
+      .from('mining_progress')
+      .select('status')
+      .eq('session_id', sessionId)
+      .single();
+    
+    if (error) {
+      console.warn(`[${sessionId}] Could not check cancellation status:`, error);
+      return false;
+    }
+    
+    return data?.status === 'cancelled';
+  } catch (err) {
+    console.warn(`[${sessionId}] Cancellation check failed:`, err);
+    return false;
   }
 }
 
@@ -210,6 +207,16 @@ serve(async (req) => {
     // Initialize progress tracking
     await updateProgress(supabaseClient, sessionId, userId, 'Initializing enhanced mining process...', 5);
 
+    // Check cancellation before starting
+    if (await checkCancellation(supabaseClient, sessionId)) {
+      console.log(`[${sessionId}] Mining cancelled by user`);
+      await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 0, 0, 'Operation was cancelled');
+      return new Response(
+        JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      );
+    }
+
     // Step 1: Use Serper to find company websites and LinkedIn profiles
     console.log('Step 1: Searching with Serper...');
     await updateProgress(supabaseClient, sessionId, userId, 'Searching for companies with Serper...', 10);
@@ -244,6 +251,16 @@ serve(async (req) => {
 
     // Extract company data from Serper results
     for (const result of serperData.organic?.slice(0, limit) || []) {
+      // Check for cancellation
+      if (await checkCancellation(supabaseClient, sessionId)) {
+        console.log(`[${sessionId}] Mining cancelled during Serper processing`);
+        await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 25, 0, 'Operation was cancelled');
+        return new Response(
+          JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
+
       if (result.link && result.title) {
         try {
           const domain = new URL(result.link).hostname.replace('www.', '');
@@ -257,8 +274,10 @@ serve(async (req) => {
               website_source: 'serper'
             }
           });
+          
+          console.log(`[${sessionId}] Found company: ${companyName} (${domain})`);
         } catch {
-          console.log('Invalid URL:', result.link);
+          console.log(`[${sessionId}] Invalid URL:`, result.link);
         }
       }
     }
@@ -276,7 +295,17 @@ serve(async (req) => {
     let linkedinProgress = 0;
     for (const company of companies) {
       try {
-        console.log(`Processing LinkedIn for: ${company.name}`);
+        // Check for cancellation
+        if (await checkCancellation(supabaseClient, sessionId)) {
+          console.log(`[${sessionId}] Mining cancelled during LinkedIn discovery`);
+          await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 35, 0, 'Operation was cancelled');
+          return new Response(
+            JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
+
+        console.log(`[${sessionId}] Processing LinkedIn for: ${company.name}`);
         let foundLinkedIn = false;
 
         // Primary: Try Serper for LinkedIn
@@ -406,6 +435,16 @@ Return ONLY a JSON object in this exact format:
     let enrichmentProgress = 0;
     for (const company of companies) {
       try {
+        // Check for cancellation
+        if (await checkCancellation(supabaseClient, sessionId)) {
+          console.log(`[${sessionId}] Mining cancelled during AI enrichment`);
+          await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 65, 0, 'Operation was cancelled');
+          return new Response(
+            JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
+
         // Determine what data is missing
         const missingFields = [];
         if (!company.employee_size) missingFields.push('employee_size');
@@ -517,6 +556,16 @@ Please provide missing information for this company. Return ONLY a JSON object:
 
     for (const company of companies) {
       try {
+        // Check for cancellation
+        if (await checkCancellation(supabaseClient, sessionId)) {
+          console.log(`[${sessionId}] Mining cancelled during Apollo KDM discovery`);
+          await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 85, 0, 'Operation was cancelled');
+          return new Response(
+            JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+          );
+        }
+
         if (!company.website) {
           apolloProgress++;
           continue;

@@ -59,3 +59,21 @@ verify_jwt = true
 
 [functions.rate-limiter]
 verify_jwt = true
+
+[functions.enhanced-lead-mining]
+verify_jwt = true
+
+[functions.cancel-mining-session]
+verify_jwt = true
+
+[functions.cleanup-mining-sessions]
+verify_jwt = true
+
+[functions.apollo-usage-check]
+verify_jwt = true
+
+[functions.send-smtp-email]
+verify_jwt = true
+
+[functions.signal-generation]
+verify_jwt = true
