@@ -115,42 +115,6 @@ export function TopNavigation() {
           </NavigationMenuContent>
         </NavigationMenuItem>
 
-        <NavigationMenuItem>
-          <NavigationMenuTrigger className="flex items-center gap-2">
-            <Mail className="h-4 w-4" />
-            Email
-          </NavigationMenuTrigger>
-          <NavigationMenuContent>
-            <ul className="grid w-[200px] gap-2 p-4">
-              <li>
-                <NavigationMenuLink asChild>
-                  <NavLink
-                    to="/email-campaigns"
-                    className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                  >
-                    <div className="text-sm font-medium leading-none">Campaign</div>
-                    <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                      Manage email campaigns
-                    </p>
-                  </NavLink>
-                </NavigationMenuLink>
-              </li>
-              <li>
-                <NavigationMenuLink asChild>
-                  <NavLink
-                    to="/email-queue"
-                    className="block select-none space-y-1 rounded-md p-3 leading-none no-underline outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
-                  >
-                    <div className="text-sm font-medium leading-none">Queue</div>
-                    <p className="line-clamp-2 text-sm leading-snug text-muted-foreground">
-                      View email queue
-                    </p>
-                  </NavLink>
-                </NavigationMenuLink>
-              </li>
-            </ul>
-          </NavigationMenuContent>
-        </NavigationMenuItem>
 
         <NavigationMenuItem>
           <NavigationMenuLink asChild>

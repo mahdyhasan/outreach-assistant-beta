@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import LeadManagement from "./pages/LeadManagement";
 import KDMManagement from "./pages/KDMManagement";
 import LeadMining from "./pages/LeadMining";
+// Email campaigns functionality commented out - keeping routes for placeholders
 import EmailCampaigns from "./pages/EmailCampaigns";
 import EmailQueue from "./pages/EmailQueue";
 import ExportLeads from "./pages/ExportLeads";
