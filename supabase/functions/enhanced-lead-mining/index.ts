@@ -41,40 +41,57 @@ function extractJSONFromResponse(content: string): any {
   }
 }
 
-// Enhanced progress tracking utility with proper error handling and cancellation support
+// Enhanced progress tracking utility with retry logic and proper error recovery
 async function updateProgress(supabaseClient: any, sessionId: string, userId: string, step: string, progress: number, results?: number, error?: string) {
-  try {
-    console.log(`[${sessionId}] Updating progress: ${step} (${progress}%)`);
-    
-    const status = error ? 'failed' : (progress >= 100 ? 'completed' : 'running');
-    const completedAt = status === 'completed' || status === 'failed' ? new Date().toISOString() : null;
-    
-    // Use upsert to handle both insert and update cases
-    const { error: upsertError } = await supabaseClient
-      .from('mining_progress')
-      .upsert({
-        session_id: sessionId,
-        user_id: userId,
-        operation_type: 'enhanced_mining',
-        current_step: step,
-        progress_percentage: Math.min(progress, 100),
-        results_so_far: results || 0,
-        error_message: error || null,
-        status: status,
-        started_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        completed_at: completedAt
-      }, {
-        onConflict: 'session_id,operation_type'
-      });
+  const maxRetries = 3;
+  let attempt = 0;
+  
+  while (attempt < maxRetries) {
+    try {
+      console.log(`[${sessionId}] Updating progress: ${step} (${progress}%)`);
+      
+      const status = error ? 'failed' : (progress >= 100 ? 'completed' : 'running');
+      const completedAt = status === 'completed' || status === 'failed' ? new Date().toISOString() : null;
+      
+      // Use upsert with the proper unique constraint
+      const { error: upsertError } = await supabaseClient
+        .from('mining_progress')
+        .upsert({
+          session_id: sessionId,
+          user_id: userId,
+          operation_type: 'enhanced_mining',
+          current_step: step,
+          progress_percentage: Math.min(progress, 100),
+          results_so_far: results || 0,
+          error_message: error || null,
+          status: status,
+          started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          completed_at: completedAt
+        }, {
+          onConflict: 'session_id,user_id'
+        });
 
-    if (upsertError) {
-      console.error(`[${sessionId}] Progress upsert error:`, upsertError);
-    } else {
+      if (upsertError) {
+        console.error(`[${sessionId}] Progress upsert error (attempt ${attempt + 1}):`, upsertError);
+        throw upsertError;
+      }
+      
+      // Success - break out of retry loop
       console.log(`[${sessionId}] Progress updated successfully: ${step} (${progress}%)`);
+      return;
+    } catch (err) {
+      attempt++;
+      console.error(`[${sessionId}] Failed to update progress (attempt ${attempt}/${maxRetries}):`, err);
+      
+      if (attempt >= maxRetries) {
+        console.error(`[${sessionId}] Max retry attempts reached for progress update`);
+        return;
+      }
+      
+      // Wait before retrying with exponential backoff
+      await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
     }
-  } catch (err) {
-    console.error(`[${sessionId}] Failed to update progress:`, err);
   }
 }
 

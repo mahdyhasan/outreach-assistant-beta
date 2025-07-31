@@ -16,11 +16,16 @@ import {
   Users,
   Building,
   AlertTriangle,
-  StopCircle
+  StopCircle,
+  RefreshCw,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useErrorRecovery } from '@/hooks/use-error-recovery';
+import { useAPIRateLimiter } from '@/hooks/use-api-rate-limiter';
 
 interface RealTimeProgressProps {
   open: boolean;
@@ -46,7 +51,12 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
   const [hasError, setHasError] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
   const [sessionTimeout, setSessionTimeout] = useState(false);
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting'>('connecting');
+  
   const { toast } = useToast();
+  const { recoverSession, cleanupOldSessions, retryAttempts, isRecovering: errorRecovering } = useErrorRecovery();
+  const { getAPIHealth, apiUsage } = useAPIRateLimiter();
 
   // Real-time subscription for instant updates
   useEffect(() => {
@@ -243,6 +253,50 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
     }
   };
 
+  // Recover stuck session
+  const handleRecoverSession = async () => {
+    setIsRecovering(true);
+    
+    try {
+      const success = await recoverSession(sessionId);
+      
+      if (success) {
+        toast({
+          title: "Session Recovered",
+          description: "The stuck mining session has been reset successfully.",
+        });
+        
+        // Reset state to allow new mining
+        setHasError(false);
+        setSessionTimeout(false);
+        setProgressData(null);
+        setLogs([]);
+      } else {
+        toast({
+          title: "Recovery Failed",
+          description: "Could not recover the session. Please try starting a new mining operation.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Session recovery error:', error);
+      toast({
+        title: "Recovery Error",
+        description: "An error occurred while recovering the session.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  // Cleanup old sessions on component mount
+  useEffect(() => {
+    if (open) {
+      cleanupOldSessions();
+    }
+  }, [open, cleanupOldSessions]);
+
   const getStatusIcon = () => {
     if (hasError) return <XCircle className="h-5 w-5 text-red-500" />;
     if (isCompleted) return <CheckCircle className="h-5 w-5 text-green-500" />;
@@ -404,17 +458,45 @@ export function RealTimeProgress({ open, onOpenChange, sessionId, onComplete }: 
           {/* Error/Status Messages */}
           {hasError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-              <div className="flex items-center gap-2 text-red-800">
-                <XCircle className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {sessionTimeout ? 'Mining Timed Out' : 
-                   progressData?.status === 'cancelled' ? 'Mining Cancelled' : 'Mining Failed'}
-                </span>
+              <div className="flex items-center justify-between text-red-800">
+                <div className="flex items-center gap-2">
+                  <XCircle className="h-4 w-4" />
+                  <span className="text-sm font-medium">
+                    {sessionTimeout ? 'Mining Timed Out' : 
+                     progressData?.status === 'cancelled' ? 'Mining Cancelled' : 'Mining Failed'}
+                  </span>
+                </div>
+                {(sessionTimeout || progressData?.status === 'failed') && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleRecoverSession}
+                    disabled={isRecovering}
+                    className="text-red-700 border-red-300 hover:bg-red-100"
+                  >
+                    {isRecovering ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Recovering...
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Recover Session
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
               <div className="text-xs text-red-600 mt-1">
                 {sessionTimeout ? 'The mining session exceeded the 10-minute limit and was stopped.' :
                  progressData?.error_message || 'An unexpected error occurred during mining.'}
               </div>
+              {retryAttempts[sessionId] > 0 && (
+                <div className="text-xs text-red-500 mt-1 font-mono">
+                  Retry attempts: {retryAttempts[sessionId]}
+                </div>
+              )}
             </div>
           )}
 
