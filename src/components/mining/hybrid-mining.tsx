@@ -48,13 +48,11 @@ export const HybridMining = ({ onLeadsFound }: HybridMiningProps) => {
       // Use enhanced mining to find and enrich similar companies
       const { data, error } = await supabase.functions.invoke('enhanced-lead-mining', {
         body: {
-          search_criteria: {
-            seed_companies: seedCompanies,
-            similarity_threshold: similarityThreshold,
-            limit: 50
-          },
-          source: 'hybrid',
-          operation_type: 'similarity_search'
+          industry: seedCompanies.join(', '), // Use seed companies as industry context
+          geography: 'Global',
+          limit: 20,
+          miningMode: 'enhanced', // Use enhanced mode for hybrid mining
+          sessionId: `hybrid_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
         }
       });
 

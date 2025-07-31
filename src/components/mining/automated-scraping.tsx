@@ -32,6 +32,8 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
     geography: 'United Kingdom',
     limit: Math.min(10, dailyLimit - dailyScraped)
   });
+  
+  const [miningMode, setMiningMode] = useState<'basic' | 'enhanced' | 'full'>('enhanced');
 
   const industries = [
     'SaaS', 'Fintech', 'Healthtech', 'Edtech', 'E-commerce', 'AI/ML',
@@ -80,6 +82,7 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
           industry: criteria.industry,
           geography: criteria.geography,
           limit: criteria.limit,
+          miningMode: miningMode,
           rateLimits: rateLimits,
           sessionId: newSessionId
         }
@@ -155,26 +158,45 @@ export const AutomatedScraping = ({ dailyScraped, dailyLimit, onLeadsFound }: Au
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Mining Mode Selection */}
+          <div className="space-y-3">
+            <Label>Mining Mode</Label>
+            <Select value={miningMode} onValueChange={(value: 'basic' | 'enhanced' | 'full') => setMiningMode(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="basic">Basic (Serper only) - Fast & Reliable</SelectItem>
+                <SelectItem value="enhanced">Enhanced (Serper + OpenAI) - Recommended</SelectItem>
+                <SelectItem value="full">Full (+ Apollo KDMs) - Requires Apollo API</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Mining Strategy Info */}
           <div className="p-4 bg-muted rounded-lg">
-            <h4 className="font-medium mb-2">4-Step Mining Process:</h4>
+            <h4 className="font-medium mb-2">
+              {miningMode === 'basic' && '2-Step Basic Process:'}
+              {miningMode === 'enhanced' && '3-Step Enhanced Process:'}
+              {miningMode === 'full' && '4-Step Full Process:'}
+            </h4>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-blue-500" />
-                <span><strong>Step 1:</strong> Serper finds company websites & LinkedIn profiles</span>
+                <span><strong>Step 1:</strong> Serper finds company websites</span>
               </div>
-              <div className="flex items-center gap-2">
-                <Search className="h-4 w-4 text-green-500" />
-                <span><strong>Step 2:</strong> Enhanced LinkedIn discovery with OpenAI fallback</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Brain className="h-4 w-4 text-purple-500" />
-                <span><strong>Step 3:</strong> OpenAI fills missing company data gaps</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-orange-500" />
-                <span><strong>Step 4:</strong> Apollo discovers key decision makers</span>
-              </div>
+              {(miningMode === 'enhanced' || miningMode === 'full') && (
+                <div className="flex items-center gap-2">
+                  <Brain className="h-4 w-4 text-purple-500" />
+                  <span><strong>Step 2:</strong> OpenAI enriches company data & finds LinkedIn</span>
+                </div>
+              )}
+              {miningMode === 'full' && (
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-orange-500" />
+                  <span><strong>Step 3:</strong> Apollo discovers key decision makers (Optional)</span>
+                </div>
+              )}
             </div>
           </div>
 

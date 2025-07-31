@@ -116,7 +116,7 @@ async function checkCancellation(supabaseClient: any, sessionId: string): Promis
   }
 }
 
-// API validation utility
+// API validation utility - Apollo is now optional
 async function validateApiKeys() {
   const serperApiKey = Deno.env.get('SERPER_API_KEY');
   const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
@@ -125,10 +125,9 @@ async function validateApiKeys() {
   const missing = [];
   if (!serperApiKey) missing.push('SERPER_API_KEY');
   if (!openaiApiKey) missing.push('OPENAI_API_KEY');
-  if (!apolloApiKey) missing.push('APOLLO_API_KEY');
   
   if (missing.length > 0) {
-    throw new Error(`Missing required API keys: ${missing.join(', ')}`);
+    throw new Error(`Missing required API keys: ${missing.join(', ')}. Apollo is optional.`);
   }
   
   return { serperApiKey, openaiApiKey, apolloApiKey };
@@ -144,6 +143,7 @@ interface MiningRequest {
   geography: string;
   limit: number;
   sessionId?: string;
+  miningMode?: 'basic' | 'enhanced' | 'full'; // Added mining mode
   rateLimits?: {
     serper?: { dailyRequests: number; resultsPerQuery: number };
     openai?: { dailyRequests: number; maxTokensPerRequest: number };
@@ -204,10 +204,10 @@ serve(async (req) => {
     );
 
     const requestBody: MiningRequest = await req.json();
-    const { industry, geography, limit, rateLimits } = requestBody;
+    const { industry, geography, limit, rateLimits, miningMode = 'enhanced' } = requestBody;
     sessionId = requestBody.sessionId || `mining_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log(`Mining leads for ${industry} in ${geography}, limit: ${limit}, sessionId: ${sessionId}`);
+    console.log(`Mining leads for ${industry} in ${geography}, limit: ${limit}, mode: ${miningMode}, sessionId: ${sessionId}`);
 
     // Validate API keys
     const { serperApiKey, openaiApiKey, apolloApiKey } = await validateApiKeys();
@@ -563,120 +563,43 @@ Please provide missing information for this company. Return ONLY a JSON object:
       }
     }
 
-    // Step 4: Use Apollo for KDM discovery
-    console.log('Step 4: Using Apollo for KDM discovery...');
-    await updateProgress(supabaseClient, sessionId, userId, 'Discovering key decision makers...', 85);
-
-    const enrichedLeads = [];
-    const maxKDMs = rateLimits?.apollo?.maxKDMsPerCompany || 2;
-    let apolloProgress = 0;
-
+    // Save basic enriched companies first (before Apollo)
+    console.log('Step 4: Saving basic enriched companies...');
+    await updateProgress(supabaseClient, sessionId, userId, 'Saving enriched companies to database...', 75);
+    
+    const basicLeads = [];
+    
     for (const company of companies) {
-      try {
-        // Check for cancellation
-        if (await checkCancellation(supabaseClient, sessionId)) {
-          console.log(`[${sessionId}] Mining cancelled during Apollo KDM discovery`);
-          await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 85, 0, 'Operation was cancelled');
-          return new Response(
-            JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-          );
+      const companyLead = {
+        company_name: company.name,
+        website: company.website,
+        linkedin_profile: company.linkedin_url,
+        industry: company.industry || industry,
+        employee_size: company.employee_size || '',
+        employee_size_numeric: company.employee_size_numeric || null,
+        founded_year: company.founded_year || null,
+        public_email: company.email || '',
+        public_phone: company.phone || '',
+        description: company.description || '',
+        location: `${geography}`,
+        country: geography,
+        user_id: userId,
+        source: 'manual',
+        status: 'pending_review',
+        ai_score: Math.floor(Math.random() * 30) + 70,
+        enrichment_data: {
+          data_sources: company.source_info,
+          mining_session: sessionId,
+          mining_mode: miningMode
         }
-
-        if (!company.website) {
-          apolloProgress++;
-          continue;
-        }
-
-        let contacts = [];
-        
-        // Search for people in Apollo with better error handling
-        try {
-          const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
-            method: 'POST',
-            headers: {
-              'Cache-Control': 'no-cache',
-              'Content-Type': 'application/json',
-              'X-Api-Key': apolloApiKey,
-            },
-            body: JSON.stringify({
-              q_organization_domains: extractMainDomain(company.website),
-              page: 1,
-              per_page: maxKDMs,
-              person_titles: ['CEO', 'CTO', 'Founder', 'Co-Founder', 'President', 'VP', 'Director'],
-            }),
-          });
-
-          if (peopleResponse.ok) {
-            const peopleData = await peopleResponse.json();
-            contacts = (peopleData.people || []).slice(0, maxKDMs);
-            console.log(`Apollo found ${contacts.length} contacts for ${company.name}`);
-          } else {
-            const errorText = await peopleResponse.text();
-            console.error(`Apollo API error for ${company.name}:`, peopleResponse.status, errorText);
-            
-            if (peopleResponse.status === 401) {
-              console.error('Apollo authentication failed - check API key');
-              // Continue without throwing to not break the entire process
-            }
-          }
-        } catch (apolloError) {
-          console.error(`Apollo request failed for ${company.name}:`, apolloError);
-          // Continue without throwing
-        }
-
-        // Create the final company lead object with CORRECT source value
-        const companyLead = {
-          company_name: company.name,
-          website: company.website,
-          linkedin_profile: company.linkedin_url,
-          industry: company.industry || industry,
-          employee_size: company.employee_size || '',
-          employee_size_numeric: company.employee_size_numeric || null,
-          founded_year: company.founded_year || null,
-          public_email: company.email || contacts[0]?.email || '',
-          public_phone: company.phone || '',
-          description: company.description || '',
-          location: `${geography}`,
-          country: geography,
-          user_id: userId,
-          source: 'manual', // Use 'manual' instead of 'enhanced_mining' to match DB constraint
-          status: 'pending_review',
-          ai_score: Math.floor(Math.random() * 30) + 70, // 70-100
-          enrichment_data: {
-            contacts_found: contacts.length,
-            data_sources: company.source_info,
-            mining_session: sessionId,
-            apollo_contacts: contacts.map((c: any) => ({
-              name: c.name,
-              title: c.title,
-              email: c.email,
-              linkedin_url: c.linkedin_url
-            }))
-          }
-        };
-        
-        enrichedLeads.push(companyLead);
-        
-        // Rate limiting for Apollo
-        await new Promise(resolve => setTimeout(resolve, 800));
-        
-        apolloProgress++;
-        const progressPercent = 85 + (apolloProgress / companies.length) * 10;
-        await updateProgress(supabaseClient, sessionId, userId, `KDM discovery: ${apolloProgress}/${companies.length} companies`, Math.round(progressPercent));
-        
-      } catch (error) {
-        console.error('Error with Apollo for company:', company.name, error);
-        apolloProgress++;
-      }
+      };
+      
+      basicLeads.push(companyLead);
     }
-
-    console.log(`Enhanced mining completed: ${enrichedLeads.length} leads processed`);
-
-    // Save to database with improved error handling
-    if (enrichedLeads.length > 0) {
-      await updateProgress(supabaseClient, sessionId, userId, 'Saving results to database...', 95);
-
+    
+    // Save basic leads to database first
+    let savedCompanies = [];
+    if (basicLeads.length > 0) {
       // Check for duplicates
       const { data: existingCompanies } = await supabaseClient
         .from('companies')
@@ -697,7 +620,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
       });
 
       // Filter out duplicates
-      const uniqueLeads = enrichedLeads.filter(lead => {
+      const uniqueLeads = basicLeads.filter(lead => {
         const leadDomain = extractMainDomain(lead.website || '');
         const leadName = lead.company_name.toLowerCase();
         
@@ -722,47 +645,142 @@ Please provide missing information for this company. Return ONLY a JSON object:
           .select();
 
         if (error) {
-          console.error('Database insert error:', error);
-          await updateProgress(supabaseClient, sessionId, userId, 'Database save failed', 95, uniqueLeads.length, error.message);
-          
-          // Return results even if database save fails
-          return new Response(
-            JSON.stringify({ 
-              success: true, 
-              count: enrichedLeads.length,
-              warning: 'Some leads may not have been saved to database',
-              database_error: error.message,
-              sources_used: {
-                serper: true,
-                openai: true,
-                apollo: true
-              }
-            }),
-            { 
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-              status: 200 
-            }
-          );
+          console.error('Basic leads database insert error:', error);
+          await updateProgress(supabaseClient, sessionId, userId, 'Database save failed', 80, 0, error.message);
+          throw new Error(`Database save failed: ${error.message}`);
         }
 
-        console.log(`Successfully inserted ${data.length} unique companies into database`);
-        await updateProgress(supabaseClient, sessionId, userId, `Successfully saved ${data.length} leads`, 100, data.length);
-      } else {
-        await updateProgress(supabaseClient, sessionId, userId, 'No new unique leads found', 100, 0);
+        savedCompanies = data;
+        console.log(`Successfully saved ${data.length} basic companies to database`);
+        await updateProgress(supabaseClient, sessionId, userId, `Saved ${data.length} companies. Preparing KDM enhancement...`, 85);
       }
-    } else {
-      await updateProgress(supabaseClient, sessionId, userId, 'No leads found', 100, 0);
     }
+    
+    // Step 5: Optional Apollo KDM enhancement (if enabled and API key available)
+    if (miningMode === 'full' && apolloApiKey) {
+      console.log('Step 5: Enhancing with Apollo KDM discovery...');
+      await updateProgress(supabaseClient, sessionId, userId, 'Enhancing with key decision makers...', 85);
+
+      const maxKDMs = rateLimits?.apollo?.maxKDMsPerCompany || 2;
+      let apolloProgress = 0;
+
+      for (const savedCompany of savedCompanies) {
+      try {
+          // Check for cancellation
+          if (await checkCancellation(supabaseClient, sessionId)) {
+            console.log(`[${sessionId}] Mining cancelled during Apollo KDM discovery`);
+            await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 85, 0, 'Operation was cancelled');
+            return new Response(
+              JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+              { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+            );
+          }
+
+          if (!savedCompany.website) {
+            apolloProgress++;
+            continue;
+          }
+
+          let contacts = [];
+          
+          // Search for people in Apollo with better error handling
+          try {
+            const peopleResponse = await fetch('https://api.apollo.io/v1/mixed_people/search', {
+              method: 'POST',
+              headers: {
+                'Cache-Control': 'no-cache',
+                'Content-Type': 'application/json',
+                'X-Api-Key': apolloApiKey,
+              },
+              body: JSON.stringify({
+                q_organization_domains: extractMainDomain(savedCompany.website),
+                page: 1,
+                per_page: maxKDMs,
+                person_titles: ['CEO', 'CTO', 'Founder', 'Co-Founder', 'President', 'VP', 'Director'],
+              }),
+            });
+
+            if (peopleResponse.ok) {
+              const peopleData = await peopleResponse.json();
+              contacts = (peopleData.people || []).slice(0, maxKDMs);
+              console.log(`Apollo found ${contacts.length} contacts for ${savedCompany.company_name}`);
+            } else {
+              const errorText = await peopleResponse.text();
+              console.error(`Apollo API error for ${savedCompany.company_name}:`, peopleResponse.status, errorText);
+              
+              if (peopleResponse.status === 401) {
+                console.error('Apollo authentication failed - skipping Apollo enhancement');
+                break; // Break out of the Apollo loop if auth fails
+              }
+            }
+          } catch (apolloError) {
+            console.error(`Apollo request failed for ${savedCompany.company_name}:`, apolloError);
+            // Continue without throwing
+          }
+
+          // Update the saved company with Apollo data if found
+          if (contacts.length > 0) {
+            try {
+              const { error: updateError } = await supabaseClient
+                .from('companies')
+                .update({
+                  enrichment_data: {
+                    ...savedCompany.enrichment_data,
+                    apollo_contacts: contacts.map((c: any) => ({
+                      name: c.name,
+                      title: c.title,
+                      email: c.email,
+                      linkedin_url: c.linkedin_url
+                    })),
+                    contacts_found: contacts.length,
+                    apollo_enhanced: true
+                  },
+                  public_email: savedCompany.public_email || contacts[0]?.email || ''
+                })
+                .eq('id', savedCompany.id);
+
+              if (updateError) {
+                console.error('Error updating company with Apollo data:', updateError);
+              } else {
+                console.log(`Updated ${savedCompany.company_name} with ${contacts.length} Apollo contacts`);
+              }
+            } catch (updateErr) {
+              console.error('Error during Apollo update:', updateErr);
+            }
+          }
+          
+          // Rate limiting for Apollo
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          apolloProgress++;
+          const progressPercent = 85 + (apolloProgress / savedCompanies.length) * 10;
+          await updateProgress(supabaseClient, sessionId, userId, `Apollo enhancement: ${apolloProgress}/${savedCompanies.length} companies`, Math.round(progressPercent));
+          
+        } catch (error) {
+          console.error('Error with Apollo for company:', savedCompany.company_name, error);
+          apolloProgress++;
+        }
+      }
+      
+      await updateProgress(supabaseClient, sessionId, userId, 'Apollo enhancement completed', 95);
+    } else {
+      console.log('Skipping Apollo KDM discovery (not in full mode or API key unavailable)');
+      await updateProgress(supabaseClient, sessionId, userId, 'Basic mining completed successfully', 95);
+    }
+
+    console.log(`Enhanced mining completed: ${savedCompanies.length} leads processed`);
+    await updateProgress(supabaseClient, sessionId, userId, `Mining completed successfully`, 100, savedCompanies.length);
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        count: enrichedLeads.length,
-        totalResults: enrichedLeads.length,
+        count: savedCompanies.length,
+        totalResults: savedCompanies.length,
+        mode: miningMode,
         sources_used: {
           serper: true,
           openai: true,
-          apollo: true
+          apollo: miningMode === 'full' && apolloApiKey ? true : false
         }
       }),
       { 
