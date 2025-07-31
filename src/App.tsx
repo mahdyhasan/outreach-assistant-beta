@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { Auth } from "@/pages/Auth";
 import Index from "./pages/Index";
 import LeadManagement from "./pages/LeadManagement";
@@ -26,15 +27,15 @@ function App() {
           <Route path="/auth" element={<Auth />} />
           
           {/* Protected routes */}
-          <Route path="/" element={<AuthGuard><Index /></AuthGuard>} />
-          <Route path="/leads" element={<AuthGuard><LeadManagement /></AuthGuard>} />
-          <Route path="/kdm" element={<AuthGuard><KDMManagement /></AuthGuard>} />
-          <Route path="/mining" element={<AuthGuard><LeadMining /></AuthGuard>} />
-          <Route path="/email-campaigns" element={<AuthGuard><EmailCampaigns /></AuthGuard>} />
-          <Route path="/email-queue" element={<AuthGuard><EmailQueue /></AuthGuard>} />
-          <Route path="/export" element={<AuthGuard><ExportLeads /></AuthGuard>} />
-          <Route path="/analytics" element={<AuthGuard><Analytics /></AuthGuard>} />
-          <Route path="/settings" element={<AuthGuard><Settings /></AuthGuard>} />
+          <Route path="/" element={<AuthGuard><DashboardLayout><Index /></DashboardLayout></AuthGuard>} />
+          <Route path="/leads" element={<AuthGuard><DashboardLayout><LeadManagement /></DashboardLayout></AuthGuard>} />
+          <Route path="/kdm" element={<AuthGuard><DashboardLayout><KDMManagement /></DashboardLayout></AuthGuard>} />
+          <Route path="/mining" element={<AuthGuard><DashboardLayout><LeadMining /></DashboardLayout></AuthGuard>} />
+          <Route path="/email-campaigns" element={<AuthGuard><DashboardLayout><EmailCampaigns /></DashboardLayout></AuthGuard>} />
+          <Route path="/email-queue" element={<AuthGuard><DashboardLayout><EmailQueue /></DashboardLayout></AuthGuard>} />
+          <Route path="/export" element={<AuthGuard><DashboardLayout><ExportLeads /></DashboardLayout></AuthGuard>} />
+          <Route path="/analytics" element={<AuthGuard><DashboardLayout><Analytics /></DashboardLayout></AuthGuard>} />
+          <Route path="/settings" element={<AuthGuard><DashboardLayout><Settings /></DashboardLayout></AuthGuard>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
