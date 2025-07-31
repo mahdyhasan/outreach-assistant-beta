@@ -29,8 +29,6 @@ const items = [
   { title: "Lead Management", url: "/leads", icon: Database },
   { title: "KDM Management", url: "/kdm", icon: Users },
   { title: "Lead Mining", url: "/mining", icon: Target },
-  { title: "Email Queue", url: "/email-queue", icon: Mail },
-  { title: "Email Campaigns", url: "/email-campaigns", icon: MessageSquare },
   { title: "Export Leads", url: "/export", icon: Download },
   { title: "Analytics", url: "/analytics", icon: BarChart3 },
   { title: "Settings", url: "/settings", icon: Settings },
