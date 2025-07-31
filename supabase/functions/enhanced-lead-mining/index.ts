@@ -234,43 +234,123 @@ serve(async (req) => {
       );
     }
 
-    // Step 1: Use Serper to find company websites and LinkedIn profiles
+    // Step 1: Use Serper to find company websites with improved targeting
     console.log('Step 1: Searching with Serper...');
     await updateProgress(supabaseClient, sessionId, userId, 'Searching for companies with Serper...', 10);
     
-    const searchQuery = `"${industry}" companies ${geography} startup scaleup`;
+    // Blacklist of domains to exclude (news, blogs, directories)
+    const excludedDomains = [
+      'linkedin.com', 'forbes.com', 'techcrunch.com', 'reuters.com', 'bloomberg.com',
+      'crunchbase.com', 'angel.co', 'venturebeat.com', 'business.com', 'inc.com',
+      'entrepreneur.com', 'fastcompany.com', 'wired.com', 'ycombinator.com',
+      'medium.com', 'substack.com', 'blog.', 'news.', 'press.', 'media.',
+      'wikipedia.org', 'glassdoor.com', 'indeed.com', 'builtwith.com'
+    ];
     
-    const serperResponse = await fetch('https://google.serper.dev/search', {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': serperApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        q: searchQuery,
-        num: rateLimits?.serper?.resultsPerQuery || 10,
-        gl: geography.toLowerCase().includes('kingdom') ? 'uk' : 'us',
-      }),
-    });
+    // Function to check if domain is valid company website
+    const isValidCompanyDomain = (url: string): boolean => {
+      try {
+        const domain = new URL(url).hostname.toLowerCase();
+        
+        // Check against blacklist
+        if (excludedDomains.some(excluded => domain.includes(excluded))) {
+          return false;
+        }
+        
+        // Skip generic domains and subdomains that are likely not companies
+        if (domain.includes('.github.') || domain.includes('.wordpress.') || 
+            domain.includes('.wix.') || domain.includes('.squarespace.')) {
+          return false;
+        }
+        
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    
+    // Function to extract clean company name
+    const extractCompanyName = (title: string, snippet: string): string => {
+      // Remove common suffixes and prefixes that indicate articles
+      const cleanTitle = title
+        .replace(/^(Top|Best|Leading|\d+)\s+/i, '')
+        .replace(/\s+(Companies?|Startups?|Firms?)\s+(in|for|of)\s+.*/i, '')
+        .split(' - ')[0]
+        .split(' | ')[0]
+        .split(' – ')[0]
+        .trim();
+      
+      // If title looks like an article, try to extract from snippet
+      if (cleanTitle.toLowerCase().includes('companies') || 
+          cleanTitle.toLowerCase().includes('startups')) {
+        const snippetMatch = snippet.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
+        if (snippetMatch) {
+          return snippetMatch[1];
+        }
+      }
+      
+      return cleanTitle;
+    };
+    
+    // Multiple search strategies for better company targeting
+    const searchQueries = [
+      `${industry} company ${geography} -"top" -"best" -"list" site:*.com`,
+      `${industry} startup ${geography} inurl:about inurl:company`,
+      `"${industry}" ${geography} -news -blog -article -directory`,
+    ];
+    
+    let allResults: any[] = [];
+    
+    for (const searchQuery of searchQueries) {
+      try {
+        console.log(`[${sessionId}] Trying search: ${searchQuery}`);
+        
+        const serperResponse = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': serperApiKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            q: searchQuery,
+            num: Math.ceil((rateLimits?.serper?.resultsPerQuery || 10) / searchQueries.length),
+            gl: geography.toLowerCase().includes('kingdom') ? 'uk' : 'us',
+          }),
+        });
 
-    if (!serperResponse.ok) {
-      const errorText = await serperResponse.text();
-      const error = `Serper API failed (${serperResponse.status}): ${errorText}`;
-      console.error(error);
-      await updateProgress(supabaseClient, sessionId, userId, 'Serper search failed', 10, 0, error);
-      throw new Error(error);
+        if (serperResponse.ok) {
+          const serperData = await serperResponse.json();
+          console.log(`[${sessionId}] Search found ${serperData.organic?.length || 0} results`);
+          allResults.push(...(serperData.organic || []));
+        }
+      } catch (error) {
+        console.log(`[${sessionId}] Search query failed: ${searchQuery}`, error);
+      }
+      
+      // Check for cancellation between searches
+      if (await checkCancellation(supabaseClient, sessionId)) {
+        console.log(`[${sessionId}] Mining cancelled during search`);
+        await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 15, 0, 'Operation was cancelled');
+        return new Response(
+          JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+        );
+      }
     }
+    
+    // Remove duplicates and sort by relevance
+    const uniqueResults = allResults.filter((result, index, arr) => 
+      arr.findIndex(r => r.link === result.link) === index
+    );
+    
+    console.log(`[${sessionId}] Total unique results found: ${uniqueResults.length}`);
+    await updateProgress(supabaseClient, sessionId, userId, `Found ${uniqueResults.length} potential companies`, 25);
 
-    const serperData = await serperResponse.json();
-    console.log(`Serper found ${serperData.organic?.length || 0} search results`);
-
-    await updateProgress(supabaseClient, sessionId, userId, `Found ${serperData.organic?.length || 0} potential companies`, 25);
-
-    // Extract company data from Serper results
-    for (const result of serperData.organic?.slice(0, limit) || []) {
+    // Extract and validate company data from results
+    for (const result of uniqueResults.slice(0, limit * 2)) { // Get more results to filter
       // Check for cancellation
       if (await checkCancellation(supabaseClient, sessionId)) {
-        console.log(`[${sessionId}] Mining cancelled during Serper processing`);
+        console.log(`[${sessionId}] Mining cancelled during result processing`);
         await updateProgress(supabaseClient, sessionId, userId, 'Mining cancelled by user', 25, 0, 'Operation was cancelled');
         return new Response(
           JSON.stringify({ error: 'Mining operation was cancelled', success: false }),
@@ -278,10 +358,19 @@ serve(async (req) => {
         );
       }
 
-      if (result.link && result.title) {
+      if (result.link && result.title && isValidCompanyDomain(result.link)) {
         try {
           const domain = new URL(result.link).hostname.replace('www.', '');
-          const companyName = result.title.split(' - ')[0].split(' | ')[0];
+          const companyName = extractCompanyName(result.title, result.snippet || '');
+          
+          // Additional validation - skip if name seems like an article title
+          if (companyName.toLowerCase().includes('companies') || 
+              companyName.toLowerCase().includes('startups') ||
+              companyName.toLowerCase().includes('top ') ||
+              companyName.toLowerCase().includes('best ')) {
+            console.log(`[${sessionId}] Skipping article-like result: ${companyName}`);
+            continue;
+          }
           
           companies.push({
             name: companyName,
@@ -292,10 +381,17 @@ serve(async (req) => {
             }
           });
           
-          console.log(`[${sessionId}] Found company: ${companyName} (${domain})`);
-        } catch {
-          console.log(`[${sessionId}] Invalid URL:`, result.link);
+          console.log(`[${sessionId}] Found valid company: ${companyName} (${domain})`);
+          
+          // Stop when we have enough companies
+          if (companies.length >= limit) {
+            break;
+          }
+        } catch (error) {
+          console.log(`[${sessionId}] Error processing result:`, result.link, error);
         }
+      } else {
+        console.log(`[${sessionId}] Filtered out non-company domain:`, result.link);
       }
     }
 
