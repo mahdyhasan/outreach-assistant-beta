@@ -986,7 +986,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      cleanup_old_mining_sessions: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      recover_mining_session: {
+        Args: { p_session_id: string; p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
