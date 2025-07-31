@@ -988,11 +988,11 @@ export type Database = {
     Functions: {
       cleanup_old_mining_sessions: {
         Args: Record<PropertyKey, never>
-        Returns: undefined
+        Returns: number
       }
       recover_mining_session: {
         Args: { p_session_id: string; p_user_id: string }
-        Returns: undefined
+        Returns: boolean
       }
     }
     Enums: {
