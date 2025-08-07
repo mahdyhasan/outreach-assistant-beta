@@ -143,16 +143,41 @@ serve(async (req) => {
       throw new Error('Company ID is required');
     }
 
-    const apolloApiKey = Deno.env.get('APOLLO_API_KEY');
-    
-    if (!apolloApiKey) {
-      throw new Error('Apollo API key not configured');
-    }
-
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Resolve Apollo API key: env first, then per-user settings
+    let apolloApiKey = Deno.env.get('APOLLO_API_KEY') || '';
+
+    if (!apolloApiKey) {
+      // Get company owner to look up per-user API key
+      const { data: companyOwner } = await supabase
+        .from('companies')
+        .select('user_id')
+        .eq('id', companyId)
+        .single();
+
+      if (companyOwner?.user_id) {
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('api_keys')
+          .eq('user_id', companyOwner.user_id)
+          .maybeSingle();
+        apolloApiKey = settings?.api_keys?.apollo?.key || '';
+      }
+    }
+
+    if (!apolloApiKey) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'Apollo API key missing. Add it in Settings → API Keys.',
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400
+      });
+    }
 
     // Check Apollo usage first
     const apolloUsage = await checkApolloUsage(apolloApiKey);

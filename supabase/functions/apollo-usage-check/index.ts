@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.51.0';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,10 +23,42 @@ serve(async (req) => {
   }
 
   try {
-    const apolloApiKey = Deno.env.get('APOLLO_API_KEY');
-    
+    // Initialize Supabase client to fetch per-user API keys when needed
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        global: {
+          headers: {
+            Authorization: req.headers.get('Authorization') || ''
+          }
+        }
+      }
+    );
+
+    // Prefer env key; fallback to user's stored key in user_settings
+    let apolloApiKey = Deno.env.get('APOLLO_API_KEY') || '';
+
     if (!apolloApiKey) {
-      throw new Error('Apollo API key not configured');
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: settings } = await supabase
+          .from('user_settings')
+          .select('api_keys')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        apolloApiKey = settings?.api_keys?.apollo?.key || '';
+      }
+    }
+
+    if (!apolloApiKey) {
+      return new Response(JSON.stringify({
+        error: 'Apollo API key missing. Add it in Settings → API Keys.',
+        success: false
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     console.log('Checking Apollo API usage...');
@@ -34,7 +67,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apolloApiKey}`
+        'X-Api-Key': apolloApiKey
       },
       body: JSON.stringify({})
     });
@@ -42,7 +75,12 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Apollo usage API error:', errorText);
-      throw new Error(`Apollo API error: ${response.status} - ${errorText}`);
+      const status = response.status === 401 ? 400 : response.status;
+      const message = response.status === 401 ? 'Invalid Apollo API key' : `Apollo API error: ${response.status} - ${errorText}`;
+      return new Response(JSON.stringify({ error: message, success: false }), {
+        status,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const usageData: ApolloUsageResponse = await response.json();

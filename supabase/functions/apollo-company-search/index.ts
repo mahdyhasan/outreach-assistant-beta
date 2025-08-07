@@ -23,12 +23,8 @@ serve(async (req) => {
   }
 
   try {
-    const apolloApiKey = Deno.env.get('APOLLO_API_KEY');
+    const apolloApiKeyEnv = Deno.env.get('APOLLO_API_KEY') || '';
     const serperApiKey = Deno.env.get('SERPER_API_KEY');
-    
-    if (!apolloApiKey) {
-      throw new Error('Apollo API key not configured');
-    }
 
     // Initialize Supabase client
     const supabase = createClient(
@@ -54,6 +50,24 @@ serve(async (req) => {
     }
 
     const userId = user.id;
+
+    // Resolve Apollo API key: env first, then per-user settings
+    let apolloApiKey = apolloApiKeyEnv;
+    if (!apolloApiKey) {
+      const { data: settings } = await supabase
+        .from('user_settings')
+        .select('api_keys')
+        .eq('user_id', userId)
+        .maybeSingle();
+      apolloApiKey = settings?.api_keys?.apollo?.key || '';
+    }
+
+    if (!apolloApiKey) {
+      return new Response(JSON.stringify({ error: 'Apollo API key missing. Add it in Settings → API Keys.', success: false }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     const { query, industry, location, size, limit = 20, linkedin_query } = await req.json() as CompanySearchRequest;
 

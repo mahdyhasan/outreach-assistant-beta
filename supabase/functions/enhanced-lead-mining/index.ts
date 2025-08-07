@@ -243,22 +243,31 @@ serve(async (req) => {
       'linkedin.com', 'forbes.com', 'techcrunch.com', 'reuters.com', 'bloomberg.com',
       'crunchbase.com', 'angel.co', 'venturebeat.com', 'business.com', 'inc.com',
       'entrepreneur.com', 'fastcompany.com', 'wired.com', 'ycombinator.com',
-      'medium.com', 'substack.com', 'blog.', 'news.', 'press.', 'media.',
-      'wikipedia.org', 'glassdoor.com', 'indeed.com', 'builtwith.com'
+      'medium.com', 'substack.com', 'wikipedia.org', 'glassdoor.com', 'indeed.com',
+      'builtwith.com', 'prnewswire.com', 'businesswire.com', 'yahoo.com', 'finance.yahoo.com',
+      'marketwatch.com', 'thestreet.com', 'dev.to', 'github.io', 'about.me', 'notion.site'
     ];
     
     // Function to check if domain is valid company website
     const isValidCompanyDomain = (url: string): boolean => {
       try {
-        const domain = new URL(url).hostname.toLowerCase();
+        const parsed = new URL(url);
+        const domain = parsed.hostname.toLowerCase();
+        const path = parsed.pathname.toLowerCase();
         
         // Check against blacklist
         if (excludedDomains.some(excluded => domain.includes(excluded))) {
           return false;
         }
         
-        // Skip generic domains and subdomains that are likely not companies
-        if (domain.includes('.github.') || domain.includes('.wordpress.') || 
+        // Skip known non-company paths
+        const badPaths = ['/blog', '/news', '/article', '/press', '/stories', '/insights', '/resources'];
+        if (badPaths.some(p => path.includes(p))) {
+          return false;
+        }
+        
+        // Skip generic hosting/subdomains
+        if (domain.includes('.github.') || domain.includes('.wordpress.') ||
             domain.includes('.wix.') || domain.includes('.squarespace.')) {
           return false;
         }
@@ -362,16 +371,14 @@ serve(async (req) => {
         try {
           const domain = new URL(result.link).hostname.replace('www.', '');
           const companyName = extractCompanyName(result.title, result.snippet || '');
-          
-          // Additional validation - skip if name seems like an article title
-          if (companyName.toLowerCase().includes('companies') || 
-              companyName.toLowerCase().includes('startups') ||
-              companyName.toLowerCase().includes('top ') ||
-              companyName.toLowerCase().includes('best ')) {
+
+          // Additional validation - skip if looks like an article/listicle
+          const invalidTitle = /(companies|startups|top\s?\d+|best|leading|most|list|guide|trends|predictions)/i.test(companyName);
+          if (invalidTitle) {
             console.log(`[${sessionId}] Skipping article-like result: ${companyName}`);
             continue;
           }
-          
+
           companies.push({
             name: companyName,
             website: `https://${domain}`,
@@ -380,10 +387,9 @@ serve(async (req) => {
               website_source: 'serper'
             }
           });
-          
+
           console.log(`[${sessionId}] Found valid company: ${companyName} (${domain})`);
-          
-          // Stop when we have enough companies
+
           if (companies.length >= limit) {
             break;
           }
