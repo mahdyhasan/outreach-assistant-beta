@@ -105,13 +105,8 @@ const Settings = () => {
   };
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
-        <div className="flex-1 flex flex-col">
-          <DashboardHeader />
-          <main className="flex-1 p-6">
-            <div className="max-w-4xl mx-auto space-y-6">
+    <div className="">
+      <div className="max-w-4xl mx-auto space-y-6">
               <div>
                 <h1 className="text-3xl font-bold text-card-foreground">Settings</h1>
                 <p className="text-muted-foreground mt-2">
@@ -461,11 +456,8 @@ const Settings = () => {
                   Save All Settings
                 </Button>
               </div>
-            </div>
-          </main>
-        </div>
       </div>
-    </SidebarProvider>
+    </div>
   );
 };
 

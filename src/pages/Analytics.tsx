@@ -117,7 +117,7 @@ export default function Analytics() {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="companies">Companies</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
+          {/* <TabsTrigger value="email">Email</TabsTrigger> */}
           <TabsTrigger value="roi">ROI</TabsTrigger>
         </TabsList>
 
@@ -150,12 +150,12 @@ export default function Analytics() {
           <AnalyticsOverview />
         </TabsContent>
 
-        <TabsContent value="email" className="space-y-6">
+        {/* <TabsContent value="email" className="space-y-6">
           <div className="grid grid-cols-1 gap-6">
             <EmailPerformanceChart />
             <AnalyticsOverview />
           </div>
-        </TabsContent>
+        </TabsContent> */}
 
         <TabsContent value="roi" className="space-y-6">
           <ROIMetrics />

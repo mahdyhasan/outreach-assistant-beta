@@ -9,9 +9,9 @@ import Index from "./pages/Index";
 import LeadManagement from "./pages/LeadManagement";
 import KDMManagement from "./pages/KDMManagement";
 import LeadMining from "./pages/LeadMining";
-// Email campaigns functionality commented out - keeping routes for placeholders
-import EmailCampaigns from "./pages/EmailCampaigns";
-import EmailQueue from "./pages/EmailQueue";
+// Email campaigns functionality removed
+// import EmailCampaigns from "./pages/EmailCampaigns";
+// import EmailQueue from "./pages/EmailQueue";
 import ExportLeads from "./pages/ExportLeads";
 import Analytics from "./pages/Analytics";
 import Settings from "./pages/Settings";
@@ -32,8 +32,8 @@ function App() {
           <Route path="/leads" element={<AuthGuard><DashboardLayout><LeadManagement /></DashboardLayout></AuthGuard>} />
           <Route path="/kdm" element={<AuthGuard><DashboardLayout><KDMManagement /></DashboardLayout></AuthGuard>} />
           <Route path="/mining" element={<AuthGuard><DashboardLayout><LeadMining /></DashboardLayout></AuthGuard>} />
-          <Route path="/email-campaigns" element={<AuthGuard><DashboardLayout><EmailCampaigns /></DashboardLayout></AuthGuard>} />
-          <Route path="/email-queue" element={<AuthGuard><DashboardLayout><EmailQueue /></DashboardLayout></AuthGuard>} />
+{/* <Route path="/email-campaigns" element={<AuthGuard><DashboardLayout><EmailCampaigns /></DashboardLayout></AuthGuard>} /> */}
+{/* <Route path="/email-queue" element={<AuthGuard><DashboardLayout><EmailQueue /></DashboardLayout></AuthGuard>} /> */}
           <Route path="/export" element={<AuthGuard><DashboardLayout><ExportLeads /></DashboardLayout></AuthGuard>} />
           <Route path="/analytics" element={<AuthGuard><DashboardLayout><Analytics /></DashboardLayout></AuthGuard>} />
           <Route path="/settings" element={<AuthGuard><DashboardLayout><Settings /></DashboardLayout></AuthGuard>} />

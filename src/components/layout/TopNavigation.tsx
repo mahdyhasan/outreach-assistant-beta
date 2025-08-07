@@ -13,8 +13,6 @@ import {
   Target, 
   Download, 
   Users, 
-  MessageSquare, 
-  Mail, 
   BarChart3, 
   Settings 
 } from "lucide-react";
