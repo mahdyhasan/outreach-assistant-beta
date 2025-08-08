@@ -7,15 +7,6 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
-import { 
-  Activity, 
-  Database, 
-  Target, 
-  Download, 
-  Users, 
-  BarChart3, 
-  Settings 
-} from "lucide-react";
 
 export function TopNavigation() {
   return (
@@ -33,7 +24,7 @@ export function TopNavigation() {
                 }`
               }
             >
-              <Activity className="h-4 w-4" />
+              
               Dashboard
             </NavLink>
           </NavigationMenuLink>
@@ -41,7 +32,7 @@ export function TopNavigation() {
 
         <NavigationMenuItem>
           <NavigationMenuTrigger className="flex items-center gap-2">
-            <Database className="h-4 w-4" />
+            
             Lead
           </NavigationMenuTrigger>
           <NavigationMenuContent className="z-[60] bg-popover border shadow-md">
@@ -91,7 +82,7 @@ export function TopNavigation() {
 
         <NavigationMenuItem>
           <NavigationMenuTrigger className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
+            
             KDM
           </NavigationMenuTrigger>
           <NavigationMenuContent className="z-[60] bg-popover border shadow-md">
@@ -126,7 +117,7 @@ export function TopNavigation() {
                 }`
               }
             >
-              <BarChart3 className="h-4 w-4" />
+              
               Analytics
             </NavLink>
           </NavigationMenuLink>
@@ -144,7 +135,7 @@ export function TopNavigation() {
                 }`
               }
             >
-              <Settings className="h-4 w-4" />
+              
               Settings
             </NavLink>
           </NavigationMenuLink>
