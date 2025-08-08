@@ -44,7 +44,7 @@ export function TopNavigation() {
             <Database className="h-4 w-4" />
             Lead
           </NavigationMenuTrigger>
-          <NavigationMenuContent>
+          <NavigationMenuContent className="z-[60] bg-popover border shadow-md">
             <ul className="grid w-[200px] gap-2 p-4">
               <li>
                 <NavigationMenuLink asChild>
@@ -94,7 +94,7 @@ export function TopNavigation() {
             <Users className="h-4 w-4" />
             KDM
           </NavigationMenuTrigger>
-          <NavigationMenuContent>
+          <NavigationMenuContent className="z-[60] bg-popover border shadow-md">
             <ul className="grid w-[200px] gap-2 p-4">
               <li>
                 <NavigationMenuLink asChild>
