@@ -24,14 +24,13 @@ serve(async (req) => {
 
   try {
     // Initialize Supabase client to fetch per-user API keys when needed
+    const authHeader = req.headers.get('Authorization');
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
       {
         global: {
-          headers: {
-            Authorization: req.headers.get('Authorization') || ''
-          }
+          headers: authHeader ? { Authorization: authHeader } : undefined,
         }
       }
     );

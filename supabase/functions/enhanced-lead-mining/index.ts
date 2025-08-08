@@ -261,8 +261,15 @@ serve(async (req) => {
         }
         
         // Skip known non-company paths
-        const badPaths = ['/blog', '/news', '/article', '/press', '/stories', '/insights', '/resources'];
-        if (badPaths.some(p => path.includes(p))) {
+        const disallowedSegments = ['blog', 'news', 'article', 'press', 'stories', 'insights', 'resources', 'events'];
+        if (disallowedSegments.some(seg => path.includes(`/${seg}`))) {
+          return false;
+        }
+        
+        // Prefer root or typical company pages
+        const allowedStarts = ['/', '/about', '/company', '/contact', '/careers', '/solutions', '/products', '/services'];
+        const isAllowedPath = allowedStarts.some(start => path === start || path.startsWith(start + '/'));
+        if (!(path === '' || isAllowedPath)) {
           return false;
         }
         
@@ -759,7 +766,18 @@ Please provide missing information for this company. Return ONLY a JSON object:
     }
     
     // Step 5: Optional Apollo KDM enhancement (if enabled and API key available)
-    if (miningMode === 'full' && apolloApiKey) {
+    let effectiveApolloKey = apolloApiKey;
+    if (!effectiveApolloKey) {
+      try {
+        const { data: settings } = await supabaseClient
+          .from('user_settings')
+          .select('api_keys')
+          .eq('user_id', userId)
+          .maybeSingle();
+        effectiveApolloKey = settings?.api_keys?.apollo?.key || '';
+      } catch (_) {}
+    }
+    if (miningMode === 'full' && effectiveApolloKey) {
       console.log('Step 5: Enhancing with Apollo KDM discovery...');
       await updateProgress(supabaseClient, sessionId, userId, 'Enhancing with key decision makers...', 85);
 
@@ -792,7 +810,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
               headers: {
                 'Cache-Control': 'no-cache',
                 'Content-Type': 'application/json',
-                'X-Api-Key': apolloApiKey,
+                'X-Api-Key': effectiveApolloKey,
               },
               body: JSON.stringify({
                 q_organization_domains: extractMainDomain(savedCompany.website),
@@ -882,7 +900,7 @@ Please provide missing information for this company. Return ONLY a JSON object:
         sources_used: {
           serper: true,
           openai: true,
-          apollo: miningMode === 'full' && apolloApiKey ? true : false
+          apollo: miningMode === 'full' && !!effectiveApolloKey
         }
       }),
       { 
